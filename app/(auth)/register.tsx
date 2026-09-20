@@ -20,9 +20,11 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { Header } from '@/components/common/Header';
 import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { register } = useAuth();
   const [nik, setNik] = useState('');
   const [nama, setNama] = useState('');
   const [phone, setPhone] = useState('');
@@ -36,14 +38,19 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (nik.length !== 16) {
-      Alert.alert('Perhatian', 'NIK harus terdiri dari tepat 16 digit angka.');
+    if (nik.trim().length !== 16 || !/^\d+$/.test(nik.trim())) {
+      Alert.alert('Perhatian', 'NIK harus terdiri dari tepat 16 digit angka sesuai KTP.');
+      return;
+    }
+
+    if (password.trim().length < 6) {
+      Alert.alert('Perhatian', 'Kata sandi minimal terdiri dari 6 karakter.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await api.registerCitizen({
+      await register({
         nik: nik.trim(),
         nama: nama.trim(),
         phone: phone.trim(),
@@ -51,22 +58,18 @@ export default function RegisterScreen() {
         no_kk: noKk.trim() || undefined,
       });
 
-      if (res.success) {
-        Alert.alert(
-          'Pendaftaran Berhasil',
-          `Akun warga atas nama ${nama} berhasil didaftarkan ke sistem desa. Anda dapat langsung menggunakan layanan permohonan surat dan pengaduan.`,
-          [
-            {
-              text: 'Buka Dashboard Warga',
-              onPress: () => router.replace('/(tabs)'),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Pendaftaran Gagal', res.message || 'Gagal mendaftarkan akun.');
-      }
+      Alert.alert(
+        'Pendaftaran Berhasil',
+        `Akun warga atas nama ${nama} berhasil didaftarkan ke sistem database desa. Anda dapat langsung menggunakan layanan permohonan surat dan pengaduan.`,
+        [
+          {
+            text: 'Buka Dashboard Warga',
+            onPress: () => router.replace('/(tabs)'),
+          },
+        ]
+      );
     } catch (err: any) {
-      Alert.alert('Kesalahan', err?.message || 'Terjadi gangguan saat memproses pendaftaran.');
+      Alert.alert('Pendaftaran Gagal', err?.message || 'Terjadi gangguan saat memproses pendaftaran.');
     } finally {
       setLoading(false);
     }

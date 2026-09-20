@@ -18,22 +18,24 @@ import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Citizen } from '@/store/mockData';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ProfilScreen() {
   const router = useRouter();
-  const [user, setUser] = useState<Citizen | null>(null);
+  const { user: authUser, logout } = useAuth();
+  const [user, setUser] = useState<Citizen | null>(authUser);
   const [familyMembers, setFamilyMembers] = useState<Citizen[]>([]);
   const [showNik, setShowNik] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const u = await api.getCurrentUser();
+      const u = authUser || (await api.getCurrentUser());
       const fam = await api.getFamilyMembers();
       setUser(u);
       setFamilyMembers(fam);
     };
     fetchProfile();
-  }, []);
+  }, [authUser]);
 
   const maskedNik = (nik?: string) => {
     if (!nik) return '----------------';
@@ -188,36 +190,54 @@ export default function ProfilScreen() {
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.menuItem, { marginTop: 12, borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
-            activeOpacity={0.8}
-            onPress={() => {
-              Alert.alert(
-                'Keluar Akun Warga',
-                'Apakah Anda yakin ingin keluar dari akun warga saat ini?',
-                [
-                  { text: 'Batal', style: 'cancel' },
-                  {
-                    text: 'Keluar',
-                    style: 'destructive',
-                    onPress: () => {
-                      api.logoutCitizen();
-                      router.replace('/(auth)/login');
+          {authUser ? (
+            <TouchableOpacity
+              style={[styles.menuItem, { marginTop: 12, borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
+              activeOpacity={0.8}
+              onPress={() => {
+                Alert.alert(
+                  'Keluar Akun Warga',
+                  'Apakah Anda yakin ingin keluar dari akun warga saat ini?',
+                  [
+                    { text: 'Batal', style: 'cancel' },
+                    {
+                      text: 'Keluar',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await logout();
+                        await api.logoutCitizen();
+                        router.replace('/(auth)/login');
+                      }
                     }
-                  }
-                ]
-              );
-            }}
-          >
-            <View style={[styles.menuIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="log-out-outline" size={20} color="#DC2626" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={[styles.menuTitle, { color: '#DC2626' }]}>Keluar dari Akun</Text>
-              <Text style={styles.menuSub}>Ganti akun atau kembali ke halaman masuk</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#DC2626" />
-          </TouchableOpacity>
+                  ]
+                );
+              }}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={[styles.menuTitle, { color: '#DC2626' }]}>Keluar dari Akun</Text>
+                <Text style={styles.menuSub}>Ganti akun atau kembali ke halaman masuk</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#DC2626" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.menuItem, { marginTop: 12, borderColor: Colors.surfaceBorder, backgroundColor: Colors.bento.hero.bg }]}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(auth)/login')}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="log-in-outline" size={20} color="#D97706" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 14 }}>
+                <Text style={[styles.menuTitle, { color: '#92400E' }]}>Masuk / Daftar Akun</Text>
+                <Text style={styles.menuSub}>Akses penuh data dan permohonan surat kependudukan</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#D97706" />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -13,6 +13,7 @@ import {
   Nunito_900Black,
 } from '@expo-google-fonts/nunito';
 import { Colors } from '@/constants/Colors';
+import { AuthProvider } from '@/context/AuthContext';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -33,7 +34,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <AuthProvider>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -51,7 +52,7 @@ export default function RootLayout() {
         <Stack.Screen name="complaints/[id]" options={{ presentation: 'card' }} />
         <Stack.Screen name="apbdes" options={{ presentation: 'card' }} />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }
 

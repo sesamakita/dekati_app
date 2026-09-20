@@ -22,6 +22,7 @@ import { supabase } from '@/services/supabase';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Citizen, LetterRequest, Announcement } from '@/store/mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/context/AuthContext';
 
 // Key penyimpanan status pengumuman yang telah dibaca
 const STORAGE_KEY_READ_ANNOUNCEMENTS = '@dekatip_read_announcements';
@@ -31,8 +32,9 @@ const seenUrgentAnnouncementIds = new Set<string>();
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user: authUser } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  const [user, setUser] = useState<Citizen | null>(null);
+  const [user, setUser] = useState<Citizen | null>(authUser);
   const [latestLetter, setLatestLetter] = useState<LetterRequest | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -81,7 +83,7 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      const userData = await api.getCurrentUser();
+      const userData = authUser || (await api.getCurrentUser());
       const letters = await api.getLetterRequests();
       const news = await api.getAnnouncements();
 
@@ -101,6 +103,12 @@ export default function HomeScreen() {
       console.error(err);
     }
   };
+
+  useEffect(() => {
+    if (authUser) {
+      setUser(authUser);
+    }
+  }, [authUser]);
 
   useEffect(() => {
     loadData();

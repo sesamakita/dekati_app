@@ -1,6 +1,7 @@
 // services/api.ts
 import { Config } from '@/constants/Config';
 import { supabase } from './supabase';
+import { auth } from './auth';
 import {
   mockUser,
   mockFamilyMembers,
@@ -25,98 +26,16 @@ class ApiService {
   // 1. Citizen Auth, User & Family Members
   // ==========================================
   async loginCitizen(identifier: string, password: string): Promise<{ success: boolean; data?: Citizen; message?: string }> {
-    const cleanId = identifier.trim();
-    const cleanPass = password.trim();
-
     try {
-      // 1. Coba panggil RPC Supabase authenticate_citizen
-      const { data, error } = await supabase.rpc('authenticate_citizen', {
-        p_nik: cleanId,
-        p_password: cleanPass
-      });
-
-      if (!error && data && Array.isArray(data) && data.length > 0) {
-        const row = data[0];
-        // Ambil detail lengkap warga jika tersedia
-        const { data: fullCit } = await supabase
-          .from('citizens')
-          .select('*')
-          .eq('id', row.id)
-          .maybeSingle();
-
-        if (fullCit) {
-          this.currentCitizen = {
-            id: fullCit.id,
-            nik: fullCit.nik,
-            no_kk: fullCit.no_kk,
-            nama_lengkap: fullCit.nama_lengkap,
-            jenis_kelamin: fullCit.jenis_kelamin || 'L',
-            status_keluarga: fullCit.status_dalam_keluarga || 'Kepala Keluarga',
-            tanggal_lahir: fullCit.tanggal_lahir || '1980-01-01',
-            pekerjaan: fullCit.pekerjaan || 'Warga Desa',
-            rt: fullCit.rt || '01',
-            rw: fullCit.rw || '01',
-            dusun: fullCit.dusun || 'Dusun Mekar',
-            is_verified: !!fullCit.is_verified,
-          };
-        } else {
-          this.currentCitizen = {
-            ...mockUser,
-            id: row.id,
-            nik: row.nik,
-            no_kk: row.no_kk || '3201012345670000',
-            nama_lengkap: row.nama_lengkap,
-            rt: row.rt || '02',
-            rw: row.rw || '01',
-            dusun: row.dusun || 'Dusun Mekar',
-            is_verified: !!row.is_verified,
-          };
-        }
-        return { success: true, data: this.currentCitizen };
-      }
-
-      // 2. Coba cari berdasarkan NIK langsung di tabel jika RPC belum dibuat di Supabase
-      const { data: citDirect, error: errDirect } = await supabase
-        .from('citizens')
-        .select('*')
-        .or(`nik.eq.${cleanId},phone_number.eq.${cleanId}`)
-        .maybeSingle();
-
-      if (!errDirect && citDirect) {
-        this.currentCitizen = {
-          id: citDirect.id,
-          nik: citDirect.nik,
-          no_kk: citDirect.no_kk,
-          nama_lengkap: citDirect.nama_lengkap,
-          jenis_kelamin: citDirect.jenis_kelamin || 'L',
-          status_keluarga: citDirect.status_dalam_keluarga || 'Kepala Keluarga',
-          tanggal_lahir: citDirect.tanggal_lahir || '1980-01-01',
-          pekerjaan: citDirect.pekerjaan || 'Warga Desa',
-          rt: citDirect.rt || '01',
-          rw: citDirect.rw || '01',
-          dusun: citDirect.dusun || 'Dusun Mekar',
-          is_verified: !!citDirect.is_verified,
-        };
-        return { success: true, data: this.currentCitizen };
-      }
-    } catch (err) {
-      console.warn('[Dekati Mobile] Supabase citizen login offline fallback:', err);
-    }
-
-    // 3. Fallback demo warga jika offline / testing
-    if (cleanId === '3201012345670001' || cleanId === '081234567890' || cleanId.length === 16) {
-      this.currentCitizen = {
-        ...mockUser,
-        nik: cleanId.length === 16 ? cleanId : mockUser.nik,
-        nama_lengkap: cleanId === '3201012345670001' ? mockUser.nama_lengkap : 'Ahmad Subarjo',
+      const session = await auth.loginCitizen(identifier, password);
+      this.currentCitizen = session.citizen;
+      return { success: true, data: session.citizen };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'NIK atau Kata Sandi tidak cocok dengan data Buku Induk Kependudukan Desa.'
       };
-      return { success: true, data: this.currentCitizen };
     }
-
-    return {
-      success: false,
-      message: 'NIK atau Kata Sandi tidak cocok dengan data Buku Induk Kependudukan Desa.'
-    };
   }
 
   async registerCitizen(payload: {
@@ -125,75 +44,50 @@ class ApiService {
     phone: string;
     password: string;
     no_kk?: string;
-  }): Promise<{ success: boolean; data?: any; message?: string }> {
+  }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
     try {
-      // Panggil RPC register_citizen di Supabase
-      const { data, error } = await supabase.rpc('register_citizen', {
-        p_nik: payload.nik.trim(),
-        p_nama: payload.nama.trim(),
-        p_phone: payload.phone.trim(),
-        p_password: payload.password.trim(),
-        p_no_kk: payload.no_kk?.trim() || '3201010000000001'
+      const session = await auth.registerCitizen({
+        nik: payload.nik,
+        nama: payload.nama,
+        phone: payload.phone,
+        password: payload.password,
+        no_kk: payload.no_kk,
       });
-
-      if (!error && data && Array.isArray(data) && data.length > 0) {
-        const row = data[0];
-        this.currentCitizen = {
-          ...mockUser,
-          id: row.id,
-          nik: row.nik,
-          nama_lengkap: row.nama_lengkap,
-          is_verified: !!row.is_verified
-        };
-        return { success: true, data: this.currentCitizen };
-      }
-
-      // Fallback insert langsung jika RPC belum dieksekusi
-      const { data: insertData, error: insertError } = await supabase
-        .from('citizens')
-        .insert({
-          nik: payload.nik.trim(),
-          nama_lengkap: payload.nama.trim(),
-          phone_number: payload.phone.trim(),
-          no_kk: payload.no_kk?.trim() || '3201010000000001',
-          alamat_lengkap: 'Desa Sukamaju',
-          rt: '01',
-          rw: '01',
-          dusun: 'Dusun Mekar',
-          is_verified: false
-        })
-        .select('*')
-        .single();
-
-      if (!insertError && insertData) {
-        this.currentCitizen = {
-          ...mockUser,
-          id: insertData.id,
-          nik: insertData.nik,
-          nama_lengkap: insertData.nama_lengkap,
-          is_verified: false
-        };
-        return { success: true, data: this.currentCitizen };
-      }
-    } catch (err) {
-      console.warn('[Dekati Mobile] Register citizen offline fallback:', err);
+      this.currentCitizen = session.citizen;
+      return { success: true, data: session.citizen };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'Gagal mendaftarkan akun warga ke database desa.'
+      };
     }
-
-    // Offline fallback
-    this.currentCitizen = {
-      ...mockUser,
-      nik: payload.nik,
-      nama_lengkap: payload.nama,
-      is_verified: false
-    };
-    return { success: true, data: this.currentCitizen };
   }
 
-  logoutCitizen() {
+  async logoutCitizen(): Promise<void> {
+    await auth.logoutCitizen();
     this.currentCitizen = mockUser;
   }
 
   async getCurrentUser(): Promise<Citizen> {
+    // 1. Cek sesi aktif di memori auth
+    const active = auth.getCurrentCitizen();
+    if (active) {
+      this.currentCitizen = active;
+      return active;
+    }
+
+    // 2. Cek sesi tersimpan di storage lokal
+    try {
+      const stored = await auth.getStoredSession();
+      if (stored?.citizen) {
+        this.currentCitizen = stored.citizen;
+        return stored.citizen;
+      }
+    } catch (e) {
+      console.warn('[Dekati Mobile] Gagal baca sesi lokal:', e);
+    }
+
+    // 3. Fallback query database jika ada NIK aktif
     try {
       const { data, error } = await supabase
         .from('citizens')

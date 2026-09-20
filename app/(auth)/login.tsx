@@ -19,9 +19,11 @@ import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
   const [identifier, setIdentifier] = useState('3201012345670001');
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,14 +37,10 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const res = await api.loginCitizen(identifier, password);
-      if (res.success) {
-        router.replace('/(tabs)');
-      } else {
-        Alert.alert('Gagal Masuk', res.message || 'NIK atau Kata Sandi salah.');
-      }
+      await login(identifier.trim(), password.trim());
+      router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Kesalahan', err?.message || 'Terjadi gangguan saat memproses login.');
+      Alert.alert('Gagal Masuk', err?.message || 'NIK atau Kata Sandi tidak sesuai.');
     } finally {
       setLoading(false);
     }
@@ -51,7 +49,7 @@ export default function LoginScreen() {
   const handleDemoFill = () => {
     setIdentifier('3201012345670001');
     setPassword('password123');
-    Alert.alert('Demo Mode Aktif', 'Data demo warga (Ahmad Subarjo - RT 02/RW 01) terisi otomatis.');
+    Alert.alert('Demo Mode Aktif', 'Data demo warga (Ahmad Subarjo - 3201012345670001) terisi otomatis.');
   };
 
   return (
@@ -142,6 +140,15 @@ export default function LoginScreen() {
             >
               <Ionicons name="flash-outline" size={16} color={Colors.primary} />
               <Text style={styles.demoBtnText}>Isi Akun Demo Warga</Text>
+            </TouchableOpacity>
+
+            {/* GUEST ACCESS */}
+            <TouchableOpacity
+              style={styles.guestBtn}
+              activeOpacity={0.85}
+              onPress={() => router.replace('/(tabs)')}
+            >
+              <Text style={styles.guestBtnText}>Masuk sebagai Tamu / Mode Eksplorasi</Text>
             </TouchableOpacity>
           </View>
 
@@ -302,6 +309,17 @@ const styles = StyleSheet.create({
     color: Colors.primaryDark,
     fontSize: 12,
     marginLeft: 6,
+  },
+  guestBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 38,
+    marginTop: 6,
+  },
+  guestBtnText: {
+    fontFamily: Fonts.semiBold,
+    color: Colors.textSecondary,
+    fontSize: 12,
   },
   footer: {
     flexDirection: 'row',
