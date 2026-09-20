@@ -122,25 +122,32 @@ export function sha256(ascii: string): string {
 
 // Memory cache untuk warga aktif yang sedang login
 let currentActiveCitizen: Citizen | null = null;
+let inMemorySession: CitizenSession | null = null;
 
 export const auth = {
   /**
    * Mengambil sesi login yang tersimpan di perangkat lokal
    */
   async getStoredSession(): Promise<CitizenSession | null> {
+    if (inMemorySession) {
+      currentActiveCitizen = inMemorySession.citizen;
+      return inMemorySession;
+    }
     try {
       const json = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
       if (json) {
         const session: CitizenSession = JSON.parse(json);
         if (session && session.citizen) {
           currentActiveCitizen = session.citizen;
+          inMemorySession = session;
           return session;
         }
       }
-    } catch (e) {
-      console.warn('[Auth] Gagal memuat sesi tersimpan:', e);
+    } catch (e: any) {
+      // Fallback diam jika storage native belum siap
+      console.log('[Auth] Menggunakan sesi fallback memori');
     }
-    return null;
+    return inMemorySession;
   },
 
   /**
@@ -239,9 +246,14 @@ export const auth = {
       loggedInAt: new Date().toISOString(),
     };
 
-    // Simpan ke AsyncStorage
-    await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    // Simpan ke inMemorySession & AsyncStorage
+    inMemorySession = session;
     currentActiveCitizen = citizen;
+    try {
+      await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } catch (e) {
+      console.log('[Auth] Disimpan ke memori aktif.');
+    }
 
     return session;
   },
@@ -379,9 +391,14 @@ export const auth = {
       loggedInAt: new Date().toISOString(),
     };
 
-    // Simpan sesi login aktif
-    await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    // Simpan sesi login aktif ke memori & AsyncStorage
+    inMemorySession = session;
     currentActiveCitizen = citizen;
+    try {
+      await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } catch (e) {
+      console.log('[Auth] Sesi pendaftaran aktif di memori.');
+    }
 
     return session;
   },
@@ -390,11 +407,12 @@ export const auth = {
    * Keluar dari akun warga dan hapus sesi dari penyimpanan
    */
   async logoutCitizen(): Promise<void> {
+    inMemorySession = null;
+    currentActiveCitizen = null;
     try {
       await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
     } catch (e) {
-      console.warn('[Auth] Gagal menghapus sesi:', e);
+      // ignore
     }
-    currentActiveCitizen = null;
   },
 };
