@@ -18,6 +18,7 @@ import { Colors } from '@/constants/Colors';
 import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
+import { api } from '@/services/api';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -26,22 +27,30 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
       Alert.alert('Perhatian', 'Mohon masukkan NIK/Nomor WhatsApp dan Kata Sandi.');
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await api.loginCitizen(identifier, password);
+      if (res.success) {
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert('Gagal Masuk', res.message || 'NIK atau Kata Sandi salah.');
+      }
+    } catch (err: any) {
+      Alert.alert('Kesalahan', err?.message || 'Terjadi gangguan saat memproses login.');
+    } finally {
       setLoading(false);
-      router.replace('/(tabs)');
-    }, 600);
+    }
   };
 
   const handleDemoFill = () => {
     setIdentifier('3201012345670001');
-    setPassword('demo1234');
+    setPassword('password123');
     Alert.alert('Demo Mode Aktif', 'Data demo warga (Ahmad Subarjo - RT 02/RW 01) terisi otomatis.');
   };
 

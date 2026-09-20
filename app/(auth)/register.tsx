@@ -19,6 +19,7 @@ import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { Header } from '@/components/common/Header';
+import { api } from '@/services/api';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!nik.trim() || !nama.trim() || !phone.trim() || !password.trim()) {
       Alert.alert('Perhatian', 'Mohon lengkapi seluruh kolom pendaftaran.');
       return;
@@ -41,19 +42,34 @@ export default function RegisterScreen() {
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await api.registerCitizen({
+        nik: nik.trim(),
+        nama: nama.trim(),
+        phone: phone.trim(),
+        password: password.trim(),
+        no_kk: noKk.trim() || undefined,
+      });
+
+      if (res.success) {
+        Alert.alert(
+          'Pendaftaran Berhasil',
+          `Akun warga atas nama ${nama} berhasil didaftarkan ke sistem desa. Anda dapat langsung menggunakan layanan permohonan surat dan pengaduan.`,
+          [
+            {
+              text: 'Buka Dashboard Warga',
+              onPress: () => router.replace('/(tabs)'),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Pendaftaran Gagal', res.message || 'Gagal mendaftarkan akun.');
+      }
+    } catch (err: any) {
+      Alert.alert('Kesalahan', err?.message || 'Terjadi gangguan saat memproses pendaftaran.');
+    } finally {
       setLoading(false);
-      Alert.alert(
-        'Pendaftaran Berhasil',
-        `Akun warga atas nama ${nama} berhasil didaftarkan. Anda dapat langsung masuk ke aplikasi untuk mengajukan surat dan menyampaikan aduan.`,
-        [
-          {
-            text: 'Mulai Masuk',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ]
-      );
-    }, 800);
+    }
   };
 
   return (

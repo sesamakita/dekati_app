@@ -17,8 +17,10 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Citizen } from '@/store/mockData';
+import { useRouter } from 'expo-router';
 
 export default function ProfilScreen() {
+  const router = useRouter();
   const [user, setUser] = useState<Citizen | null>(null);
   const [familyMembers, setFamilyMembers] = useState<Citizen[]>([]);
   const [showNik, setShowNik] = useState(false);
@@ -184,6 +186,37 @@ export default function ProfilScreen() {
               <Text style={styles.menuSub}>Kebijakan kerahasiaan identitas warga</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { marginTop: 12, borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
+            activeOpacity={0.8}
+            onPress={() => {
+              Alert.alert(
+                'Keluar Akun Warga',
+                'Apakah Anda yakin ingin keluar dari akun warga saat ini?',
+                [
+                  { text: 'Batal', style: 'cancel' },
+                  {
+                    text: 'Keluar',
+                    style: 'destructive',
+                    onPress: () => {
+                      api.logoutCitizen();
+                      router.replace('/(auth)/login');
+                    }
+                  }
+                ]
+              );
+            }}
+          >
+            <View style={[styles.menuIcon, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.menuTitle, { color: '#DC2626' }]}>Keluar dari Akun</Text>
+              <Text style={styles.menuSub}>Ganti akun atau kembali ke halaman masuk</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#DC2626" />
           </TouchableOpacity>
         </View>
       </ScrollView>

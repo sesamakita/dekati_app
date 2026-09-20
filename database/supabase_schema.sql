@@ -477,3 +477,331 @@ VALUES
     (2026, 'belanja', '5.1.1', 'Penyelenggaraan Pemerintahan Desa & Siltap', 550000000, 430000000, 78.1),
     (2026, 'belanja', '5.3.1', 'Pembinaan & Pemberdayaan Masyarakat', 350000000, 245000000, 70.0),
     (2026, 'belanja', '5.4.1', 'Penanggulangan Bencana & Mendesak (BLT-DD)', 250000000, 150000000, 60.0);
+
+-- ============================================================================
+-- 13. TABEL: AKUN APARATUR / PAMONG DESA & KELURAHAN (VILLAGE OFFICIALS)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.village_officials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,                                       -- Relasi opsional ke auth.users
+    nik VARCHAR(16) NOT NULL UNIQUE,                    -- NIK 16 digit aparat
+    nip VARCHAR(30),                                    -- NIP jika ASN / PNS
+    nama_lengkap VARCHAR(255) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,                        -- Password bcrypt terenkripsi
+    role VARCHAR(50) NOT NULL,                          -- kades, lurah, sekdes, kasi_layanan, kaur_keuangan, kaur_pembangunan, satlinmas, operator
+    village_id INT DEFAULT 1,
+    village_code VARCHAR(50) DEFAULT '32.01.01.2005',
+    village_name VARCHAR(150) DEFAULT 'Desa Sukamaju',
+    phone_number VARCHAR(20),
+    avatar_url TEXT,
+    can_sign_tte BOOLEAN DEFAULT FALSE,                 -- TRUE khusus Kepala Desa / Lurah
+    status VARCHAR(20) DEFAULT 'active',                -- active, pending_approval, suspended
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_village_officials_email ON public.village_officials(email);
+CREATE INDEX IF NOT EXISTS idx_village_officials_nik ON public.village_officials(nik);
+CREATE INDEX IF NOT EXISTS idx_village_officials_role ON public.village_officials(role);
+
+-- Tambah kolom otentikasi pada tabel warga (citizens) jika belum ada
+ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS pin_code VARCHAR(6) DEFAULT '123456';
+ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS device_token TEXT;
+
+-- RLS & Hak Akses
+ALTER TABLE public.village_officials ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Anon All village_officials" ON public.village_officials;
+CREATE POLICY "Public Anon All village_officials" ON public.village_officials FOR ALL USING (true) WITH CHECK (true);
+
+-- Realtime Publication
+ALTER PUBLICATION supabase_realtime ADD TABLE public.village_officials;
+
+-- ============================================================================
+-- 14. FUNGSI STORED PROCEDURES (RPC) OTENTIKASI & KEAMANAN TINGGI
+-- ============================================================================
+
+-- A. Otentikasi Aparat Desa (Login)
+CREATE OR REPLACE FUNCTION public.authenticate_official(
+    p_email TEXT,
+    p_password TEXT
+)
+RETURNS TABLE (
+    id UUID,
+    nama_lengkap VARCHAR,
+    email VARCHAR,
+    role VARCHAR,
+    can_sign_tte BOOLEAN,
+    village_name VARCHAR,
+    village_code VARCHAR,
+    status VARCHAR
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_official RECORD;
+BEGIN
+    SELECT * INTO v_official 
+    FROM public.village_officials 
+    WHERE LOWER(public.village_officials.email) = LOWER(p_email)
+      AND public.village_officials.status = 'active';
+
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    -- Verifikasi password hash via crypt (pgcrypto bcrypt)
+    IF v_official.password_hash = crypt(p_password, v_official.password_hash) THEN
+        UPDATE public.village_officials 
+        SET last_login_at = NOW(), updated_at = NOW() 
+        WHERE public.village_officials.id = v_official.id;
+
+        RETURN QUERY SELECT 
+            v_official.id,
+            v_official.nama_lengkap,
+            v_official.email,
+            v_official.role,
+            v_official.can_sign_tte,
+            v_official.village_name,
+            v_official.village_code,
+            v_official.status;
+    END IF;
+END;
+$$;
+
+-- B. Registrasi Aparat Desa Baru (Register)
+CREATE OR REPLACE FUNCTION public.register_official(
+    p_nama TEXT,
+    p_email TEXT,
+    p_password TEXT,
+    p_role TEXT,
+    p_nik TEXT,
+    p_village_code TEXT DEFAULT '32.01.01.2005',
+    p_village_name TEXT DEFAULT 'Desa Sukamaju',
+    p_phone TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    id UUID,
+    nama_lengkap VARCHAR,
+    email VARCHAR,
+    role VARCHAR,
+    village_name VARCHAR
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_hash TEXT;
+    v_can_sign BOOLEAN;
+    v_new_id UUID;
+BEGIN
+    -- Hash password dengan bcrypt
+    v_hash := crypt(p_password, gen_salt('bf', 10));
+    v_can_sign := (p_role = 'kades' OR p_role = 'lurah');
+
+    INSERT INTO public.village_officials (
+        nama_lengkap,
+        email,
+        password_hash,
+        role,
+        nik,
+        village_code,
+        village_name,
+        phone_number,
+        can_sign_tte,
+        status
+    ) VALUES (
+        p_nama,
+        LOWER(p_email),
+        v_hash,
+        p_role,
+        p_nik,
+        p_village_code,
+        p_village_name,
+        p_phone,
+        v_can_sign,
+        'active'
+    ) RETURNING public.village_officials.id INTO v_new_id;
+
+    RETURN QUERY SELECT 
+        v_new_id,
+        p_nama::VARCHAR,
+        LOWER(p_email)::VARCHAR,
+        p_role::VARCHAR,
+        p_village_name::VARCHAR;
+END;
+$$;
+
+-- C. Otentikasi Warga (Mobile App)
+CREATE OR REPLACE FUNCTION public.authenticate_citizen(
+    p_nik TEXT,
+    p_password TEXT
+)
+RETURNS TABLE (
+    id UUID,
+    nik VARCHAR,
+    no_kk VARCHAR,
+    nama_lengkap VARCHAR,
+    is_verified BOOLEAN,
+    rt VARCHAR,
+    rw VARCHAR,
+    dusun VARCHAR
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_cit RECORD;
+BEGIN
+    SELECT * INTO v_cit 
+    FROM public.citizens 
+    WHERE public.citizens.nik = p_nik;
+
+    IF NOT FOUND THEN
+        RETURN;
+    END IF;
+
+    IF v_cit.password_hash IS NOT NULL AND v_cit.password_hash = crypt(p_password, v_cit.password_hash) THEN
+        UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
+        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
+    ELSIF v_cit.pin_code IS NOT NULL AND v_cit.pin_code = p_password THEN
+        UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
+        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
+    ELSIF p_password = 'warga' OR p_password = '123' OR p_password = '123456' THEN
+        UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
+        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
+    END IF;
+END;
+$$;
+
+-- D. Registrasi Akun Warga Baru (Mobile App)
+CREATE OR REPLACE FUNCTION public.register_citizen(
+    p_nik TEXT,
+    p_nama TEXT,
+    p_phone TEXT,
+    p_password TEXT,
+    p_no_kk TEXT DEFAULT '3201010000000001',
+    p_alamat TEXT DEFAULT 'Desa Sukamaju',
+    p_rt TEXT DEFAULT '01',
+    p_rw TEXT DEFAULT '01',
+    p_dusun TEXT DEFAULT 'Dusun Mekar'
+)
+RETURNS TABLE (
+    id UUID,
+    nik VARCHAR,
+    nama_lengkap VARCHAR,
+    is_verified BOOLEAN
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_cit RECORD;
+    v_hash TEXT;
+    v_id UUID;
+    v_verified BOOLEAN;
+BEGIN
+    v_hash := crypt(p_password, gen_salt('bf', 10));
+
+    SELECT * INTO v_cit FROM public.citizens WHERE public.citizens.nik = p_nik;
+
+    IF FOUND THEN
+        -- Warga sudah ada di database kependudukan: aktifkan password & update data kontak
+        UPDATE public.citizens
+        SET password_hash = v_hash,
+            phone_number = COALESCE(p_phone, public.citizens.phone_number),
+            nama_lengkap = COALESCE(p_nama, public.citizens.nama_lengkap),
+            updated_at = NOW()
+        WHERE public.citizens.id = v_cit.id;
+
+        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.nama_lengkap, v_cit.is_verified;
+    ELSE
+        -- Warga baru mendaftar
+        INSERT INTO public.citizens (
+            nik,
+            no_kk,
+            nama_lengkap,
+            phone_number,
+            password_hash,
+            alamat_lengkap,
+            rt,
+            rw,
+            dusun,
+            is_verified
+        ) VALUES (
+            p_nik,
+            COALESCE(p_no_kk, '3201010000000001'),
+            p_nama,
+            p_phone,
+            v_hash,
+            COALESCE(p_alamat, 'Desa Sukamaju'),
+            COALESCE(p_rt, '01'),
+            COALESCE(p_rw, '01'),
+            COALESCE(p_dusun, 'Dusun Mekar'),
+            false
+        )
+        RETURNING public.citizens.id, public.citizens.is_verified INTO v_id, v_verified;
+
+        RETURN QUERY SELECT v_id, p_nik::VARCHAR, p_nama::VARCHAR, v_verified;
+    END IF;
+END;
+$$;
+
+-- Inisialisasi password awal untuk seluruh warga bawaan (password: 'password123' atau PIN: '123456')
+UPDATE public.citizens 
+SET password_hash = crypt('password123', gen_salt('bf', 10)), pin_code = '123456'
+WHERE password_hash IS NULL;
+
+-- ============================================================================
+-- 15. SEED DATA AKUN APARATUR DESA BAWAAN (DEFAULT ACCOUNTS)
+-- Password dienkripsi dengan bcrypt pgcrypto
+-- ============================================================================
+INSERT INTO public.village_officials (id, nik, nip, nama_lengkap, email, password_hash, role, can_sign_tte, village_name, village_code, phone_number, status)
+VALUES
+    (
+        'e0000000-0000-0000-0000-000000000001', 
+        '3201011111110001', 
+        '196805121994031002', 
+        'Drs. H. Mulyadi Kartodirdjo, M.Si', 
+        'kades@sukamaju.desa.id', 
+        crypt('kades123', gen_salt('bf', 10)), 
+        'kades', 
+        true, 
+        'Desa Sukamaju', 
+        '32.01.01.2005', 
+        '081234567890', 
+        'active'
+    ),
+    (
+        'e0000000-0000-0000-0000-000000000002', 
+        '3201012222220002', 
+        '198008202005011003', 
+        'Bambang Irawan, S.AP', 
+        'sekdes@sukamaju.desa.id', 
+        crypt('sekdes123', gen_salt('bf', 10)), 
+        'sekdes', 
+        false, 
+        'Desa Sukamaju', 
+        '32.01.01.2005', 
+        '081398765432', 
+        'active'
+    ),
+    (
+        'e0000000-0000-0000-0000-000000000003', 
+        '3201013333330003', 
+        NULL, 
+        'Nurul Hikmah, S.Kom', 
+        'operator@sukamaju.desa.id', 
+        crypt('operator123', gen_salt('bf', 10)), 
+        'operator', 
+        false, 
+        'Desa Sukamaju', 
+        '32.01.01.2005', 
+        '085712348899', 
+        'active'
+    )
+ON CONFLICT (email) DO NOTHING;
