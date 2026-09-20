@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dekati - Interactive UI/UX Prototype</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0f172a;
+      color: #334155;
+    }
+    .phone-mockup {
+      width: 390px;
+      height: 780px;
+      border: 12px solid #1e293b;
+      border-radius: 46px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center">
+  <!-- Top Switcher Bar -->
+  <header class="w-full max-w-6xl mb-6 flex flex-col sm:flex-row items-center justify-between bg-slate-800 text-white p-4 rounded-2xl border border-slate-700 shadow-xl">
+    <div class="flex items-center space-x-3 mb-4 sm:mb-0">
+      <div class="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center font-black text-xl shadow-lg">
+        <i class="fa-solid fa-mountain-sun"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold tracking-tight">Dekati Prototype Preview</h1>
+        <p class="text-xs text-emerald-400 font-medium">Portal Layanan & Komunikasi Warga Desa</p>
+      </div>
+    </div>
+
+    <!-- Toggle View Mode -->
+    <div class="flex bg-slate-900 p-1.5 rounded-xl border border-slate-700">
+      <button onclick="switchView('mobile')" id="btn-mobile" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-600 text-white shadow">
+        <i class="fa-solid fa-mobile-screen mr-2"></i> Aplikasi Warga (Mobile)
+      </button>
+      <button onclick="switchView('admin')" id="btn-admin" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white">
+        <i class="fa-solid fa-gauge-high mr-2"></i> Dasbor Admin Desa (Web)
+      </button>
+    </div>
+  </header>
+
+  <!-- ================================================================= -->
+  <!-- 1. MOBILE APP VIEW -->
+  <!-- ================================================================= -->
+  <div id="view-mobile" class="flex flex-col items-center">
+    <div class="phone-mockup bg-slate-50 flex flex-col relative">
+      <!-- Status Bar -->
+      <div class="h-8 bg-emerald-700 text-white text-xs px-6 flex items-center justify-between font-semibold shrink-0">
+        <span>09:41</span>
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-battery-full"></i>
+        </div>
+      </div>
+
+      <!-- Phone App Content -->
+      <div class="flex-1 overflow-y-auto pb-20">
+        <!-- SCREEN 1: BERANDA -->
+        <div id="mob-tab-home">
+          <!-- Header Profile -->
+          <div class="bg-gradient-to-b from-emerald-700 to-emerald-600 text-white p-5 rounded-b-3xl shadow-md">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center space-x-3">
+                <div class="w-11 h-11 rounded-full bg-white/20 border border-white/30 flex items-center justify-center font-bold text-lg">
+                  AS
+                </div>
+                <div>
+                  <p class="text-xs text-emerald-100 font-medium">Selamat Datang,</p>
+                  <h2 class="text-base font-bold">Ahmad Subarjo</h2>
+                  <span class="inline-block px-2 py-0.5 bg-emerald-800/60 rounded text-[10px] text-emerald-200">RT 02 / RW 01 • Terverifikasi</span>
+                </div>
+              </div>
+              <div class="relative">
+                <button class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
+                  <i class="fa-regular fa-bell"></i>
+                </button>
+                <span class="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-emerald-700"></span>
+              </div>
+            </div>
+
+            <!-- Urgent Announcement Card -->
+            <div class="bg-red-600/90 text-white p-3 rounded-xl flex items-start space-x-3 border border-red-400/40 shadow-sm">
+              <i class="fa-solid fa-bullhorn text-lg mt-0.5 text-red-200"></i>
+              <div class="text-xs">
+                <span class="font-bold uppercase tracking-wider text-[10px] bg-red-800 px-1.5 py-0.5 rounded">Darurat / Penting</span>
+                <p class="font-semibold mt-1">Penyaluran BLT-Dana Desa Tahap 3</p>
+                <p class="text-red-100 text-[11px]">Sabtu, 21 Sep 2026 di Balai Desa Pukul 09.00 WIB.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tracking Widget Terakhir -->
+          <div class="px-5 mt-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status Surat Terakhir</span>
+                <span class="text-[11px] font-semibold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Diproses</span>
+              </div>
+              <h3 class="text-sm font-bold text-slate-800">Surat Keterangan Tidak Mampu (SKTM)</h3>
+              <p class="text-xs text-slate-500 mt-0.5">No: <span class="font-mono text-slate-700">SRT-202609-0012</span></p>
+              <div class="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
+                <div class="bg-emerald-500 h-full w-2/3 rounded-full"></div>
+              </div>
+              <div class="flex justify-between items-center mt-2 text-[11px] text-slate-500">
+                <span>Verifikasi Berkas Berhasil</span>
+                <span class="text-emerald-600 font-semibold cursor-pointer" onclick="setMobileTab('surat')">Detail ></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Services Grid -->
+          <div class="px-5 mt-5">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Layanan Utama Desa</h3>
+            <div class="grid grid-cols-4 gap-3 text-center">
+              <button onclick="setMobileTab('surat')" class="flex flex-col items-center group">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition">
+                  <i class="fa-solid fa-file-signature"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-slate-700 mt-2">Layanan Surat</span>
+              </button>
+
+              <button onclick="setMobileTab('aduan')" class="flex flex-col items-center group">
+                <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-slate-700 mt-2">Lapor Aduan</span>
+              </button>
+
+              <button class="flex flex-col items-center group">
+                <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition">
+                  <i class="fa-solid fa-chart-pie"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-slate-700 mt-2">Dana Desa</span>
+              </button>
+
+              <button class="flex flex-col items-center group">
+                <div class="w-14 h-14 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center text-xl shadow-sm group-hover:scale-105 transition">
+                  <i class="fa-solid fa-phone-volume"></i>
+                </div>
+                <span class="text-[11px] font-semibold text-slate-700 mt-2">Darurat</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Berita & Kabar Desa -->
+          <div class="px-5 mt-6">
+            <div class="flex justify-between items-center mb-3">
+              <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Kabar Desa Sukamaju</h3>
+              <span class="text-xs text-emerald-600 font-semibold">Lihat Semua</span>
+            </div>
+            <div class="space-y-3">
+              <div class="bg-white p-3 rounded-xl border border-slate-200 flex space-x-3 items-center shadow-sm">
+                <div class="w-16 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-slate-400">
+                  <i class="fa-solid fa-hand-holding-medical text-2xl"></i>
+                </div>
+                <div>
+                  <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">Kesehatan</span>
+                  <h4 class="text-xs font-bold text-slate-800 line-clamp-2 mt-1">Jadwal Posyandu Balita & Lansia Dusun Mekar</h4>
+                  <p class="text-[10px] text-slate-400 mt-0.5">Kemarin • 150 Dilihat</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCREEN 2: LAYANAN SURAT -->
+        <div id="mob-tab-surat" class="hidden p-5">
+          <div class="flex items-center space-x-3 mb-4">
+            <button onclick="setMobileTab('home')" class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <h2 class="text-base font-bold text-slate-800">Pengajuan Surat Online</h2>
+          </div>
+
+          <!-- Opsi Pengajuan Diri / Keluarga -->
+          <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl mb-4 text-xs">
+            <p class="font-bold text-emerald-900 mb-1">Surat Ini Diajukan Untuk Siapa?</p>
+            <div class="flex space-x-2 mt-2">
+              <button class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold text-[11px] shadow-sm">
+                Diri Sendiri (Ahmad)
+              </button>
+              <button class="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 font-semibold text-[11px]">
+                + Anggota KK (Anak/Istri)
+              </button>
+            </div>
+          </div>
+
+          <!-- Katalog Surat -->
+          <div class="space-y-3">
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:border-emerald-500 cursor-pointer">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-800">Surat Ket. Tidak Mampu (SKTM)</h4>
+                  <p class="text-[10px] text-slate-500">Keperluan beasiswa, keringanan RS, dll.</p>
+                </div>
+              </div>
+              <span class="text-xs text-emerald-600 font-bold">Pilih ></span>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:border-emerald-500 cursor-pointer">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-store"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-800">Surat Keterangan Usaha (SKU)</h4>
+                  <p class="text-[10px] text-slate-500">Syarat pinjaman bank/KUR dan izin usaha.</p>
+                </div>
+              </div>
+              <span class="text-xs text-emerald-600 font-bold">Pilih ></span>
+            </div>
+
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:border-emerald-500 cursor-pointer">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                  <i class="fa-solid fa-id-card"></i>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-slate-800">Surat Pengantar SKCK</h4>
+                  <p class="text-[10px] text-slate-500">Pengantar kepolisian untuk melamar kerja.</p>
+                </div>
+              </div>
+              <span class="text-xs text-emerald-600 font-bold">Pilih ></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCREEN 3: LAPOR ADUAN -->
+        <div id="mob-tab-aduan" class="hidden p-5">
+          <div class="flex items-center space-x-3 mb-4">
+            <button onclick="setMobileTab('home')" class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <h2 class="text-base font-bold text-slate-800">Lapor Keluhan / Aduan</h2>
+          </div>
+
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Kategori Laporan</label>
+              <select class="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-slate-50">
+                <option>Jalan Rusak / Berlubang</option>
+                <option>Lampu PJU Padam</option>
+                <option>Sampah Liar Menumpuk</option>
+                <option>Saluran Air / Banjir</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Foto Bukti Lapangan</label>
+              <div class="border-2 border-dashed border-slate-300 p-4 rounded-xl text-center bg-slate-50">
+                <i class="fa-solid fa-camera text-slate-400 text-2xl mb-1"></i>
+                <p class="text-[11px] text-slate-500 font-medium">Ketuk untuk buka kamera ponsel</p>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-bold text-slate-700 block mb-1">Keterangan Singkat</label>
+              <textarea class="w-full text-xs p-2.5 rounded-xl border border-slate-300 bg-slate-50" rows="3" placeholder="Jelaskan titik lokasi dan kondisi masalah..."></textarea>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl text-xs">
+              <span class="font-medium text-slate-700">Lapor sebagai Anonim (Rahasia)</span>
+              <input type="checkbox" class="w-4 h-4 text-emerald-600 rounded" checked />
+            </div>
+
+            <button class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-md transition">
+              Kirim Laporan Aduan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Navigation Bar -->
+      <div class="absolute bottom-0 inset-x-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around px-4">
+        <button onclick="setMobileTab('home')" id="nav-mob-home" class="flex flex-col items-center text-emerald-600 font-bold text-[10px]">
+          <i class="fa-solid fa-house text-lg"></i>
+          <span>Beranda</span>
+        </button>
+        <button onclick="setMobileTab('surat')" id="nav-mob-surat" class="flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]">
+          <i class="fa-solid fa-file-lines text-lg"></i>
+          <span>Surat</span>
+        </button>
+        <button onclick="setMobileTab('aduan')" id="nav-mob-aduan" class="flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]">
+          <i class="fa-solid fa-circle-exclamation text-lg"></i>
+          <span>Aspirasi</span>
+        </button>
+        <button class="flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]">
+          <i class="fa-solid fa-user text-lg"></i>
+          <span>Profil</span>
+        </button>
+      </div>
+    </div>
+    <p class="text-slate-400 text-xs mt-4">Simulasi Interaktif Antarmuka Warga Desa (Dekati Mobile)</p>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- 2. ADMIN DASHBOARD VIEW -->
+  <!-- ================================================================= -->
+  <div id="view-admin" class="hidden w-full max-w-6xl">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row min-h-[650px]">
+      <!-- Sidebar Admin -->
+      <aside class="w-full md:w-64 bg-slate-900 text-slate-300 p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center space-x-3 mb-8">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center font-black text-white text-lg shadow">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+              <h2 class="text-sm font-bold text-white leading-tight">DEKATI ADMIN</h2>
+              <span class="text-[10px] text-emerald-400">Desa Sukamaju v1.0</span>
+            </div>
+          </div>
+
+          <nav class="space-y-1 text-xs font-semibold">
+            <a href="#" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl bg-emerald-600 text-white">
+              <i class="fa-solid fa-chart-line w-4"></i>
+              <span>Dashboard Utama</span>
+            </a>
+            <a href="#" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-file-circle-check w-4"></i>
+              <span>Pelayanan Surat (18)</span>
+            </a>
+            <a href="#" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-bullhorn w-4"></i>
+              <span>Aduan Warga (3)</span>
+            </a>
+            <a href="#" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-users w-4"></i>
+              <span>Buku Kependudukan</span>
+            </a>
+            <a href="#" class="flex items-center space-x-3 px-3.5 py-2.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition">
+              <i class="fa-solid fa-money-bill-transfer w-4"></i>
+              <span>Transparansi APBDes</span>
+            </a>
+          </nav>
+        </div>
+
+        <div class="pt-4 border-t border-slate-800 text-xs">
+          <p class="font-bold text-white">Budi Santoso (Sekdes)</p>
+          <p class="text-slate-500 text-[10px]">Operator Layanan Aktif</p>
+        </div>
+      </aside>
+
+      <!-- Main Content Admin -->
+      <main class="flex-1 bg-slate-50 p-6 overflow-y-auto">
+        <!-- Top Stats Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Permohonan Masuk</span>
+            <div class="flex items-center justify-between mt-1">
+              <span class="text-2xl font-black text-slate-800">18</span>
+              <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">Perlu Cek</span>
+            </div>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Surat Selesai (Bulan Ini)</span>
+            <div class="flex items-center justify-between mt-1">
+              <span class="text-2xl font-black text-emerald-600">142</span>
+              <span class="text-xs text-slate-400 font-medium">100% QR TTE</span>
+            </div>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Tiket Aduan Baru</span>
+            <div class="flex items-center justify-between mt-1">
+              <span class="text-2xl font-black text-red-600">3</span>
+              <span class="text-xs text-red-500 font-semibold">Tindak Lanjut</span>
+            </div>
+          </div>
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-slate-400 uppercase">Warga Terdaftar</span>
+            <div class="flex items-center justify-between mt-1">
+              <span class="text-2xl font-black text-blue-600">1.450</span>
+              <span class="text-xs text-blue-500 font-medium">94% Ber-KK</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table Permohonan Surat Masuk -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm">Antrean Verifikasi Surat Warga</h3>
+              <p class="text-xs text-slate-400">Periksa kelengkapan berkas dan sahkan dengan TTE QR Code</p>
+            </div>
+            <button class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition">
+              + Buat Surat Langsung
+            </button>
+          </div>
+
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                <th class="p-3">No. Tracking</th>
+                <th class="p-3">Nama Warga / NIK</th>
+                <th class="p-3">Jenis Surat</th>
+                <th class="p-3">Keperluan</th>
+                <th class="p-3">Status</th>
+                <th class="p-3 text-right">Aksi Operator</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+              <tr>
+                <td class="p-3 font-mono font-bold text-emerald-700">SRT-202609-0015</td>
+                <td class="p-3">
+                  <p class="font-bold text-slate-800">Siti Subarjo</p>
+                  <p class="text-[10px] text-slate-400">NIK: 3201016543210002</p>
+                </td>
+                <td class="p-3">Surat Ket. Tidak Mampu (SKTM)</td>
+                <td class="p-3 text-slate-500">Pengajuan Beasiswa Kuliah</td>
+                <td class="p-3">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">Menunggu Cek</span>
+                </td>
+                <td class="p-3 text-right space-x-2">
+                  <button class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded hover:bg-emerald-100">Periksa Berkas</button>
+                  <button class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200">Tolak</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="p-3 font-mono font-bold text-emerald-700">SRT-202609-0014</td>
+                <td class="p-3">
+                  <p class="font-bold text-slate-800">Joko Santoso</p>
+                  <p class="text-[10px] text-slate-400">NIK: 3201011122330004</p>
+                </td>
+                <td class="p-3">Surat Keterangan Usaha (SKU)</td>
+                <td class="p-3 text-slate-500">Pengajuan KUR Mikro BRI</td>
+                <td class="p-3">
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">Siap Cetak / QR</span>
+                </td>
+                <td class="p-3 text-right space-x-2">
+                  <button class="px-2.5 py-1 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 shadow-sm">Terbitkan TTE</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+    <p class="text-slate-400 text-xs mt-4 text-center">Dasbor Pengelolaan Perangkat Desa & Aparatur Pelayanan Publik</p>
+  </div>
+
+  <script>
+    function switchView(view) {
+      if (view === 'mobile') {
+        document.getElementById('view-mobile').classList.remove('hidden');
+        document.getElementById('view-admin').classList.add('hidden');
+        document.getElementById('btn-mobile').className = 'px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-600 text-white shadow';
+        document.getElementById('btn-admin').className = 'px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white';
+      } else {
+        document.getElementById('view-mobile').classList.add('hidden');
+        document.getElementById('view-admin').classList.remove('hidden');
+        document.getElementById('btn-admin').className = 'px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-emerald-600 text-white shadow';
+        document.getElementById('btn-mobile').className = 'px-4 py-2 rounded-lg text-sm font-semibold transition-all text-slate-300 hover:text-white';
+      }
+    }
+
+    function setMobileTab(tab) {
+      document.getElementById('mob-tab-home').classList.add('hidden');
+      document.getElementById('mob-tab-surat').classList.add('hidden');
+      document.getElementById('mob-tab-aduan').classList.add('hidden');
+
+      document.getElementById('nav-mob-home').className = 'flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]';
+      document.getElementById('nav-mob-surat').className = 'flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]';
+      document.getElementById('nav-mob-aduan').className = 'flex flex-col items-center text-slate-400 hover:text-emerald-600 text-[10px]';
+
+      if (tab === 'home') {
+        document.getElementById('mob-tab-home').classList.remove('hidden');
+        document.getElementById('nav-mob-home').className = 'flex flex-col items-center text-emerald-600 font-bold text-[10px]';
+      } else if (tab === 'surat') {
+        document.getElementById('mob-tab-surat').classList.remove('hidden');
+        document.getElementById('nav-mob-surat').className = 'flex flex-col items-center text-emerald-600 font-bold text-[10px]';
+      } else if (tab === 'aduan') {
+        document.getElementById('mob-tab-aduan').classList.remove('hidden');
+        document.getElementById('nav-mob-aduan').className = 'flex flex-col items-center text-emerald-600 font-bold text-[10px]';
+      }
+    }
+  </script>
+</body>
+</html>

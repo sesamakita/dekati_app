@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Dekati",
+    "slug": "dekatip-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "dekati",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#16A34A",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#16A34A"
+      },
+      "package": "id.desa.dekati.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Aplikasi Dekati membutuhkan izin akses galeri untuk mengunggah berkas persyaratan surat dan foto aduan."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Aplikasi Dekati membutuhkan izin lokasi untuk mendeteksi koordinat titik fasilitas umum yang Anda laporkan."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

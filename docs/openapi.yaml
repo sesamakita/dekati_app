@@ -1,0 +1,536 @@
+openapi: 3.0.3
+info:
+  title: Dekati (Desa Kita Dekat di Hati) API Specification
+  description: RESTful API Backend untuk Portal Layanan dan Komunikasi Warga Desa Dekati.
+  version: 1.0.0
+  contact:
+    name: Tim Pengembang Aplikasi Desa
+    email: dev@desa-contoh.desa.id
+
+servers:
+  - url: https://api.desa-contoh.desa.id/api/v1
+    description: Production Server
+  - url: http://localhost:8000/api/v1
+    description: Local Development Server
+
+paths:
+  # ==========================================
+  # AUTHENTICATION
+  # ==========================================
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrasi akun baru warga desa
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nik, phone_number, password, nama_lengkap]
+              properties:
+                nik:
+                  type: string
+                  example: "3201012345670001"
+                phone_number:
+                  type: string
+                  example: "081234567890"
+                nama_lengkap:
+                  type: string
+                  example: "Ahmad Subarjo"
+                password:
+                  type: string
+                  format: password
+                  example: "Rahasia123!"
+      responses:
+        '201':
+          description: Akun berhasil didaftarkan, menunggu verifikasi OTP/Admin.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login pengguna (Warga / Aparatur Desa)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  type: string
+                  description: NIK, Nomor WhatsApp, atau Email
+                  example: "3201012345670001"
+                password:
+                  type: string
+                  format: password
+                  example: "Rahasia123!"
+      responses:
+        '200':
+          description: Login berhasil, menghasilkan access token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Mendapatkan data profil akun yang sedang aktif
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Data user berhasil diambil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  # ==========================================
+  # CITIZEN & FAMILY
+  # ==========================================
+  /citizens/family-members:
+    get:
+      tags: [Citizens]
+      summary: Daftar anggota keluarga berdasarkan Nomor KK yang sama
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Daftar anggota keluarga berhasil diambil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Citizen'
+
+  # ==========================================
+  # LETTERS (SURAT MENYURAT)
+  # ==========================================
+  /letters/types:
+    get:
+      tags: [Letters]
+      summary: Daftar jenis surat yang dapat diajukan (SKTM, SKDU, Domisili, dll)
+      responses:
+        '200':
+          description: Katalog jenis surat
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LetterType'
+
+  /letters/requests:
+    get:
+      tags: [Letters]
+      summary: Daftar pengajuan surat milik pengguna
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, in_verification, needs_revision, approved, signed, ready_for_pickup, completed, rejected]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Riwayat pengajuan surat
+    post:
+      tags: [Letters]
+      summary: Mengajukan permohonan surat baru
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [letter_type_id, citizen_id, purpose]
+              properties:
+                letter_type_id:
+                  type: integer
+                  example: 1
+                citizen_id:
+                  type: string
+                  format: uuid
+                  description: Subjek warga yang diajukan (bisa pemohon atau anggota keluarga)
+                purpose:
+                  type: string
+                  example: "Persyaratan beasiswa kuliah di universitas"
+                form_data:
+                  type: string
+                  description: JSON string untuk isian form dinamis
+                  example: '{"nama_sekolah": "Universitas Indonesia", "jurusan": "Ilmu Komputer"}'
+                attachment_files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Pengajuan surat berhasil dikirim
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Permohonan surat berhasil dikirim."
+                  data:
+                    $ref: '#/components/schemas/LetterRequest'
+
+  /letters/requests/{tracking_number}:
+    get:
+      tags: [Letters]
+      summary: Melacak status pengajuan surat dan riwayat log
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tracking_number
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "SRT-202609-0001"
+      responses:
+        '200':
+          description: Detail tracking surat berhasil diambil
+
+  /letters/verify/{qr_token}:
+    get:
+      tags: [Letters Public]
+      summary: Halaman publik untuk memverifikasi keaslian surat via QR Code
+      parameters:
+        - name: qr_token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dokumen valid dan terdaftar secara sah di sistem desa
+
+  # ==========================================
+  # COMPLAINTS (PENGADUAN & ASPIRASI)
+  # ==========================================
+  /complaints/categories:
+    get:
+      tags: [Complaints]
+      summary: Daftar kategori pengaduan (Jalan Rusak, Sampah, dll)
+      responses:
+        '200':
+          description: Kategori aduan
+
+  /complaints:
+    get:
+      tags: [Complaints]
+      summary: Mengambil feed aduan publik desa yang transparan
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Feed aduan warga desa
+    post:
+      tags: [Complaints]
+      summary: Membuat tiket aduan baru
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [category_id, title, description, location_address]
+              properties:
+                category_id:
+                  type: integer
+                  example: 1
+                title:
+                  type: string
+                  example: "Lampu Penerangan Jalan Mati di RT 03"
+                description:
+                  type: string
+                  example: "Sudah 3 malam lampu penerangan gang gelap gulita rawan kecelakaan."
+                location_address:
+                  type: string
+                  example: "Jl. Mawar No. 12 RT 03 RW 01"
+                latitude:
+                  type: number
+                  example: -6.2088
+                longitude:
+                  type: number
+                  example: 106.8456
+                is_anonymous:
+                  type: boolean
+                  default: false
+                is_public:
+                  type: boolean
+                  default: true
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Laporan aduan berhasil dikirim
+
+  /complaints/{ticket_number}:
+    get:
+      tags: [Complaints]
+      summary: Melihat detail aduan beserta riwayat tindak lanjut (timeline & foto bukti)
+      parameters:
+        - name: ticket_number
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "ADU-202609-0012"
+      responses:
+        '200':
+          description: Detail aduan
+
+  # ==========================================
+  # ANNOUNCEMENTS & APBDES
+  # ==========================================
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: Daftar pengumuman dan siaran desa
+      responses:
+        '200':
+          description: Daftar artikel pengumuman desa
+
+  /apbdes:
+    get:
+      tags: [Village & APBDes]
+      summary: Data transparansi anggaran desa per tahun fiskal
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Ringkasan pendapatan, belanja, dan pembiayaan desa
+
+  # ==========================================
+  # DEVICES & PUSH NOTIFICATIONS
+  # ==========================================
+  /devices/register-fcm:
+    post:
+      tags: [Notifications]
+      summary: Mendaftarkan FCM token ponsel warga untuk push notification
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fcm_token, os_type]
+              properties:
+                fcm_token:
+                  type: string
+                  example: "c0g39...kL9"
+                device_name:
+                  type: string
+                  example: "Samsung Galaxy A54"
+                os_type:
+                  type: string
+                  enum: [android, ios, web]
+                  example: "android"
+      responses:
+        '200':
+          description: FCM token tersimpan
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Token autentikasi tidak valid atau telah kedaluwarsa
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Unauthenticated. Silakan login kembali."
+    ValidationError:
+      description: Input formulir tidak memenuhi aturan validasi
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: "Validasi gagal."
+              errors:
+                type: object
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nik:
+          type: string
+        phone_number:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [superadmin, kades, admin_desa, petugas_layanan, ketua_rt_rw, warga]
+        status:
+          type: string
+          enum: [pending_verification, active, rejected, suspended]
+        avatar_url:
+          type: string
+
+    Citizen:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nik:
+          type: string
+        no_kk:
+          type: string
+        nama_lengkap:
+          type: string
+        jenis_kelamin:
+          type: string
+          enum: [L, P]
+        status_dalam_keluarga:
+          type: string
+          example: "Kepala Keluarga"
+        rt:
+          type: string
+        rw:
+          type: string
+        dusun:
+          type: string
+
+    LetterType:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+          example: "SKTM"
+        name:
+          type: string
+          example: "Surat Keterangan Tidak Mampu"
+        estimated_days:
+          type: integer
+          example: 1
+        required_docs:
+          type: array
+          items:
+            type: object
+        form_fields:
+          type: array
+          items:
+            type: object
+
+    LetterRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tracking_number:
+          type: string
+          example: "SRT-202609-0001"
+        status:
+          type: string
+          enum: [submitted, in_verification, needs_revision, approved, signed, ready_for_pickup, completed, rejected]
+        purpose:
+          type: string
+        qr_verification_url:
+          type: string
+        pdf_file_url:
+          type: string
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Autentikasi berhasil."
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsIn..."
+            user:
+              $ref: '#/components/schemas/User'
