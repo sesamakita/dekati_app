@@ -20,6 +20,7 @@ import {
 class ApiService {
   private localLetterRequests: LetterRequest[] = [...mockLetterRequests];
   private localComplaints: Complaint[] = [...mockComplaints];
+  private localFamilyMembers: Citizen[] = [];
   private currentCitizen: Citizen = mockUser;
 
   // ==========================================
@@ -119,33 +120,169 @@ class ApiService {
   }
 
   async getFamilyMembers(): Promise<Citizen[]> {
+    const current = await this.getCurrentUser();
+    let members: Citizen[] = [];
+
     try {
       const { data, error } = await supabase
         .from('citizens')
         .select('*')
-        .eq('no_kk', this.currentCitizen.no_kk)
+        .eq('no_kk', current.no_kk)
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        return data.map((d: any) => ({
+        members = data.map((d: any) => ({
           id: d.id,
           nik: d.nik,
           no_kk: d.no_kk,
           nama_lengkap: d.nama_lengkap,
-          jenis_kelamin: d.jenis_kelamin,
+          jenis_kelamin: (d.jenis_kelamin as 'L' | 'P') || 'L',
           status_keluarga: d.status_dalam_keluarga || 'Anggota Keluarga',
-          tanggal_lahir: d.tanggal_lahir,
-          pekerjaan: d.pekerjaan,
-          rt: d.rt,
-          rw: d.rw,
-          dusun: d.dusun,
+          tanggal_lahir: d.tanggal_lahir || '2000-01-01',
+          pekerjaan: d.pekerjaan || 'Warga Desa',
+          rt: d.rt || current.rt,
+          rw: d.rw || current.rw,
+          dusun: d.dusun || current.dusun,
           is_verified: !!d.is_verified,
         }));
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getFamilyMembers offline fallback.', err);
     }
-    return mockFamilyMembers;
+
+    if (members.length === 0) {
+      // Jika database belum mengembalikan data atau offline
+      if (current.nik === mockUser.nik) {
+        members = [...mockFamilyMembers];
+      } else {
+        members = [current];
+      }
+    }
+
+    // Pastikan akun yang sedang login selalu ada di dalam list (sebagai Kepala Keluarga)
+    if (!members.some((m) => m.nik === current.nik)) {
+      members.unshift(current);
+    }
+
+    // Gabungkan dengan anggota yang baru ditambahkan secara lokal/sesi
+    for (const local of this.localFamilyMembers) {
+      if (!members.some((m) => m.id === local.id || m.nik === local.nik)) {
+        members.push(local);
+      }
+    }
+
+    return members;
+  }
+
+  async addFamilyMember(payload: {
+    nik: string;
+    nama_lengkap: string;
+    jenis_kelamin: 'L' | 'P';
+    status_keluarga: string;
+    tanggal_lahir?: string;
+    pekerjaan?: string;
+    phone_number?: string;
+  }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
+    const cleanNik = payload.nik.trim();
+    const cleanNama = payload.nama_lengkap.trim();
+
+    if (!cleanNik || cleanNik.length !== 16 || !/^\d+$/.test(cleanNik)) {
+      return { success: false, message: 'NIK harus terdiri dari tepat 16 digit angka sesuai KTP/KIA.' };
+    }
+    if (!cleanNama) {
+      return { success: false, message: 'Nama lengkap wajib diisi sesuai KTP/Akta/KIA.' };
+    }
+
+    const current = await this.getCurrentUser();
+    const noKk = current.no_kk || '3201010000000001';
+
+    const insertPayload: any = {
+      nik: cleanNik,
+      no_kk: noKk,
+      nama_lengkap: cleanNama,
+      jenis_kelamin: payload.jenis_kelamin || 'L',
+      status_dalam_keluarga: payload.status_keluarga || 'Anak',
+      tanggal_lahir: payload.tanggal_lahir || '2005-01-01',
+      pekerjaan: payload.pekerjaan || 'Pelajar/Belum Bekerja',
+      rt: current.rt || '01',
+      rw: current.rw || '01',
+      dusun: current.dusun || 'Dusun Mekar',
+      alamat_lengkap: `Kp. Sukamaju, RT ${current.rt || '01'}/RW ${current.rw || '01'}, Desa ${Config.villageName}`,
+      phone_number: payload.phone_number || '',
+      is_verified: false,
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('citizens')
+        .insert([insertPayload])
+        .select('*')
+        .single();
+
+      if (!error && data) {
+        const newCitizen: Citizen = {
+          id: data.id,
+          nik: data.nik,
+          no_kk: data.no_kk,
+          nama_lengkap: data.nama_lengkap,
+          jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || payload.jenis_kelamin,
+          status_keluarga: data.status_dalam_keluarga || payload.status_keluarga,
+          tanggal_lahir: data.tanggal_lahir || payload.tanggal_lahir || '2005-01-01',
+          pekerjaan: data.pekerjaan || payload.pekerjaan || 'Pelajar/Belum Bekerja',
+          rt: data.rt || current.rt,
+          rw: data.rw || current.rw,
+          dusun: data.dusun || current.dusun,
+          is_verified: !!data.is_verified,
+        };
+        this.localFamilyMembers.push(newCitizen);
+        return { success: true, data: newCitizen };
+      }
+
+      if (error) {
+        if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+          return { success: false, message: 'NIK tersebut sudah terdaftar dalam sistem kependudukan desa.' };
+        }
+        console.warn('[Dekati Mobile] addFamilyMember Supabase error:', error);
+      }
+    } catch (err: any) {
+      console.warn('[Dekati Mobile] addFamilyMember exception:', err);
+    }
+
+    // Fallback lokal jika database offline
+    const localCitizen: Citizen = {
+      id: 'cit_' + cleanNik,
+      nik: cleanNik,
+      no_kk: noKk,
+      nama_lengkap: cleanNama,
+      jenis_kelamin: payload.jenis_kelamin,
+      status_keluarga: payload.status_keluarga,
+      tanggal_lahir: payload.tanggal_lahir || '2005-01-01',
+      pekerjaan: payload.pekerjaan || 'Pelajar/Belum Bekerja',
+      rt: current.rt || '01',
+      rw: current.rw || '01',
+      dusun: current.dusun || 'Dusun Mekar',
+      is_verified: false,
+    };
+    this.localFamilyMembers.push(localCitizen);
+    return { success: true, data: localCitizen };
+  }
+
+  async deleteFamilyMember(citizenId: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const { error } = await supabase
+        .from('citizens')
+        .delete()
+        .eq('id', citizenId);
+
+      if (error) {
+        console.warn('[Dekati Mobile] deleteFamilyMember Supabase error:', error);
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] deleteFamilyMember exception:', err);
+    }
+
+    this.localFamilyMembers = this.localFamilyMembers.filter((m) => m.id !== citizenId);
+    return { success: true };
   }
 
   // ==========================================
@@ -248,7 +385,8 @@ class ApiService {
     attachments?: string[];
   }): Promise<LetterRequest> {
     const selectedType = mockLetterTypes.find(t => t.id === payload.letter_type_id);
-    const selectedCitizen = mockFamilyMembers.find(c => c.id === payload.citizen_id) || mockUser;
+    const familyList = await this.getFamilyMembers();
+    const selectedCitizen = familyList.find(c => c.id === payload.citizen_id) || mockFamilyMembers.find(c => c.id === payload.citizen_id) || this.currentCitizen;
     const now = new Date();
     const trackingNumber = `SRT-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
     const nowTimeStr = `${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
