@@ -41,6 +41,7 @@ export default function CreateComplaintScreen() {
   const [useGps, setUseGps] = useState(true);
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const openImagePicker = async (source: 'camera' | 'gallery') => {
@@ -57,6 +58,7 @@ export default function CreateComplaintScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.7,
+          base64: true,
         });
       } else {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -65,11 +67,13 @@ export default function CreateComplaintScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.7,
+          base64: true,
         });
       }
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setPhotoUri(result.assets[0].uri);
+        setPhotoBase64(result.assets[0].base64 || null);
       }
     } catch (e) {
       Alert.alert('Gagal Mengambil Foto', 'Terjadi kendala saat mengakses kamera atau galeri.');
@@ -117,7 +121,8 @@ export default function CreateComplaintScreen() {
         location: location + (useGps ? ' (GPS: -6.2088, 106.8456)' : ''),
         is_anonymous: isAnonymous,
         photo_url: photoUri || undefined,
-      });
+        base64: photoBase64,
+      } as any);
 
       Alert.alert(
         'Laporan Berhasil Terkirim',

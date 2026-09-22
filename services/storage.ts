@@ -37,6 +37,8 @@ function base64ToUint8Array(base64: string): Uint8Array {
  * @param base64String Data base64 opsional dari ImagePicker untuk fallback instan
  * @returns URL Publik Cloud Supabase (atau fallback Data URI)
  */
+let bucketNotFoundNotified = false;
+
 export async function uploadImageToSupabase(
   localUri: string,
   folder: 'citizens' | 'letters' | 'complaints' = 'citizens',
@@ -80,7 +82,19 @@ export async function uploadImageToSupabase(
         return publicUrlData.publicUrl;
       }
     } else {
-      console.warn('[Dekati Storage] Bucket "documents" notice:', error?.message);
+      const msg = error?.message || '';
+      if (msg.toLowerCase().includes('not found')) {
+        if (!bucketNotFoundNotified) {
+          bucketNotFoundNotified = true;
+          console.warn(
+            '[Dekati Storage] PEMBERITAHUAN: Bucket "documents" belum dibuat di Supabase Storage.\n' +
+            'Sistem otomatis beralih ke mode Fallback Base64 Data URI agar gambar tetap tersimpan dan tampil di Web Admin.\n' +
+            'Untuk mengaktifkan penyimpanan file permanen, buat bucket publik bernama "documents" di Supabase Dashboard.'
+          );
+        }
+      } else {
+        console.warn('[Dekati Storage] Bucket notice:', msg);
+      }
     }
   } catch (err) {
     console.warn('[Dekati Storage] Upload exception:', err);

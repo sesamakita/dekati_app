@@ -479,7 +479,7 @@ class ApiService {
           const cloudUrl = await uploadImageToSupabase(item, 'letters');
           processedAttachments.push({ name: 'Dokumen Persyaratan', url: cloudUrl });
         } else if (item && typeof item === 'object') {
-          const cloudUrl = await uploadImageToSupabase(item.url, 'letters');
+          const cloudUrl = await uploadImageToSupabase(item.url, 'letters', (item as any).base64);
           processedAttachments.push({ name: item.name || 'Dokumen Persyaratan', url: cloudUrl });
         }
       }
@@ -577,8 +577,8 @@ class ApiService {
     const ticketNumber = `ADU-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     let cloudPhotoUrl = payload.photo_url;
-    if (cloudPhotoUrl && cloudPhotoUrl.startsWith('file://')) {
-      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'complaints');
+    if (cloudPhotoUrl && !cloudPhotoUrl.startsWith('http://') && !cloudPhotoUrl.startsWith('https://') && !cloudPhotoUrl.startsWith('data:')) {
+      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'complaints', (payload as any).base64);
     }
 
     const newComplaint: Complaint = {

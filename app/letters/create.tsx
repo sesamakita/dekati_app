@@ -33,6 +33,7 @@ export default function CreateLetterScreen() {
   const [selectedCitizenId, setSelectedCitizenId] = useState<string>('');
   const [purpose, setPurpose] = useState('');
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({});
+  const [uploadedDocsBase64, setUploadedDocsBase64] = useState<Record<string, string>>({});
   const [previewDocUri, setPreviewDocUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -101,10 +102,17 @@ export default function CreateLetterScreen() {
       }
 
       if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
         setUploadedDocs((prev) => ({
           ...prev,
-          [docName]: result.assets[0].uri,
+          [docName]: asset.uri,
         }));
+        if (asset.base64) {
+          setUploadedDocsBase64((prev) => ({
+            ...prev,
+            [docName]: asset.base64!,
+          }));
+        }
       }
     } catch (e) {
       Alert.alert('Gagal Mengambil Berkas', 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.');
@@ -143,6 +151,11 @@ export default function CreateLetterScreen() {
       delete next[docName];
       return next;
     });
+    setUploadedDocsBase64((prev) => {
+      const next = { ...prev };
+      delete next[docName];
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -155,7 +168,11 @@ export default function CreateLetterScreen() {
     try {
       const formattedAttachments = Object.entries(uploadedDocs)
         .filter(([_, url]) => Boolean(url))
-        .map(([name, url]) => ({ name, url }));
+        .map(([name, url]) => ({ 
+          name, 
+          url,
+          base64: uploadedDocsBase64[name] || null,
+        }));
 
       const res = await api.submitLetterRequest({
         letter_type_id: selectedTypeId,
