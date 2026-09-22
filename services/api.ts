@@ -416,42 +416,51 @@ class ApiService {
     const isSigned = ['signed', 'completed'].includes(status);
     const isRejected = status === 'rejected';
 
-    const findTime = (keyword: string, fallbackTime = '-') => {
-      const found = parsed.find((p) => p && p.title && p.title.toLowerCase().includes(keyword.toLowerCase()) && p.done);
-      return found ? found.time : fallbackTime;
+    // Helper pencari langkah berdasarkan variasi kata kunci (prioritaskan rekaman terbaru)
+    const findStep = (keywords: string[]) => {
+      const reversed = [...parsed].reverse();
+      return reversed.find((p) =>
+        p && p.title && keywords.some((kw) => p.title.toLowerCase().includes(kw.toLowerCase())) && p.done
+      );
     };
+
+    const step1 = findStep(['dikirim', 'diajukan', 'permohonan']);
+    const step2 = findStep(['verifikasi', 'pemeriksaan', 'operator']);
+    const step3 = findStep(['nomor', 'registrasi', 'no.']);
+    const step4 = findStep(['tanda tangan', 'tte', 'disahkan', 'selesai', 'dokumen']);
+    const rejectStep = findStep(['ditolak', 'tolak']);
 
     return [
       {
         title: 'Permohonan Dikirim Warga',
-        time: findTime('dikirim', createdTimeStr),
+        time: step1?.time || createdTimeStr,
         done: isSubmitted,
       },
       {
         title: isRejected
-          ? (parsed.find((p) => p && p.title?.toLowerCase().includes('ditolak'))?.title || 'Pengajuan Ditolak Petugas')
+          ? (rejectStep?.title || 'Pengajuan Ditolak Petugas')
           : 'Pemeriksaan Berkas Operator Pelayanan',
         time: isRejected
-          ? findTime('ditolak', 'Selesai diverifikasi')
-          : findTime('pemeriksaan', isInVerification ? 'Sedang diverifikasi' : '-'),
+          ? (rejectStep?.time || 'Ditolak')
+          : (step2?.time || (isInVerification ? 'Selesai diverifikasi' : '-')),
         done: isInVerification || isRejected,
-        actor: 'Operator Pelayanan',
+        actor: step2?.actor || 'Operator Pelayanan',
       },
       {
         title: officialNumber
           ? `Penerbitan No. Registrasi Desa (${officialNumber})`
           : 'Penerbitan Nomor Registrasi Surat Desa',
-        time: findTime('nomor', isApproved ? 'Nomor Terbit' : '-'),
+        time: step3?.time || (isApproved ? 'Nomor Terbit' : '-'),
         done: isApproved,
-        actor: 'Sekretariat Desa',
+        actor: step3?.actor || 'Sekretariat Desa',
       },
       {
         title: isSigned
           ? `Tanda Tangan Elektronik QR Disahkan (${signedBy || 'Kepala Desa'})`
           : 'Pengesahan TTE QR Kepala Desa',
-        time: findTime('tanda tangan', isSigned ? 'Telah Disahkan' : '-'),
+        time: step4?.time || (isSigned ? 'Telah Disahkan' : '-'),
         done: isSigned,
-        actor: signedBy || 'Kepala Desa',
+        actor: step4?.actor || signedBy || 'Kepala Desa',
       },
     ];
   }
@@ -480,6 +489,14 @@ class ApiService {
           created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
           timeline: this.formatTimelineSteps(d.timeline, d.status, d.created_at, d.letter_official_number, d.signed_by_name),
         }));
+
+        // Sinkronkan state memori lokal agar tidak membawa data usang
+        for (const c of cloudRequests) {
+          const lIdx = this.localLetterRequests.findIndex(r => r.tracking_number === c.tracking_number || r.id === c.id);
+          if (lIdx !== -1) {
+            this.localLetterRequests[lIdx] = c;
+          }
+        }
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getLetterRequests offline fallback.', err);
@@ -499,14 +516,20 @@ class ApiService {
   async getLetterRequestByTracking(trackingNumber: string): Promise<LetterRequest> {
     const cleanId = (trackingNumber || '').trim();
     try {
-      const { data, error } = await supabase
-        .from('letter_requests')
-        .select('*')
-        .or(`tracking_number.eq.${cleanId},id.eq.${cleanId}`)
-        .maybeSingle();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId);
+      let query = supabase.from('letter_requests').select('*');
+
+      // Hindari error PostgreSQL 22P02: id bertipe UUID sehingga jangan dicocokkan dengan teks SRT-...
+      if (isUuid) {
+        query = query.or(`id.eq.${cleanId},tracking_number.eq.${cleanId}`);
+      } else {
+        query = query.eq('tracking_number', cleanId);
+      }
+
+      const { data, error } = await query.maybeSingle();
 
       if (!error && data) {
-        return {
+        const item: LetterRequest = {
           id: data.id,
           tracking_number: data.tracking_number,
           letter_type_id: data.letter_type_id || 1,
@@ -522,6 +545,16 @@ class ApiService {
           timeline: this.formatTimelineSteps(data.timeline, data.status, data.created_at, data.letter_official_number, data.signed_by_name),
           attachments: Array.isArray(data.attachments) ? data.attachments : []
         };
+
+        // Perbarui cache memori lokal dengan data cloud termutakhir
+        const localIdx = this.localLetterRequests.findIndex(r => r.tracking_number === cleanId || r.id === cleanId);
+        if (localIdx !== -1) {
+          this.localLetterRequests[localIdx] = item;
+        } else {
+          this.localLetterRequests.unshift(item);
+        }
+
+        return item;
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getLetterRequestByTracking fallback.', err);

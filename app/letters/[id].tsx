@@ -9,7 +9,7 @@ import {
   Linking,
   RefreshControl,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,13 @@ export default function LetterDetailScreen() {
     }
   }, [id]);
 
+  // Muat ulang data terbaru setiap kali layar Lacak Surat aktif / fokus
+  useFocusEffect(
+    useCallback(() => {
+      fetchDetail();
+    }, [fetchDetail])
+  );
+
   useEffect(() => {
     fetchDetail();
 
@@ -45,8 +52,8 @@ export default function LetterDetailScreen() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'letter_requests' },
         (payload) => {
-          const row = payload.new as any;
-          if (row && (row.tracking_number === id || row.id === id)) {
+          const row = (payload.new || payload.old) as any;
+          if (!row || row.tracking_number === id || row.id === id) {
             fetchDetail();
           }
         }
@@ -160,11 +167,11 @@ export default function LetterDetailScreen() {
           <Text style={styles.sectionTitle}>Riwayat Proses Verifikasi</Text>
           <View style={styles.timelineContainer}>
             {(Array.isArray(request.timeline) && request.timeline.length > 0 ? request.timeline : [
-              { title: 'Permohonan Dikirim Warga', time: request.created_at || 'Baru saja', done: true },
-              { title: 'Pemeriksaan Berkas Operator', time: '-', done: false },
-              { title: 'Penerbitan Nomor Resmi Desa', time: '-', done: false },
-              { title: 'Tanda Tangan Elektronik QR Kades', time: '-', done: false },
-            ]).map((step, idx, arr) => {
+              { title: 'Permohonan Dikirim Warga', time: request.created_at || 'Baru saja', done: true, actor: 'Warga Pemohon' },
+              { title: 'Pemeriksaan Berkas Operator', time: '-', done: false, actor: 'Operator Pelayanan' },
+              { title: 'Penerbitan Nomor Resmi Desa', time: '-', done: false, actor: 'Sekretariat Desa' },
+              { title: 'Tanda Tangan Elektronik QR Kades', time: '-', done: false, actor: 'Kepala Desa' },
+            ]).map((step: { title: string; time: string; done: boolean; actor?: string }, idx, arr) => {
               const isLast = idx === arr.length - 1;
               return (
                 <View key={idx} style={styles.timelineItem}>
@@ -199,7 +206,12 @@ export default function LetterDetailScreen() {
                     >
                       {step.title}
                     </Text>
-                    <Text style={styles.timelineTime}>{step.time}</Text>
+                    <View style={styles.timelineMeta}>
+                      <Text style={styles.timelineTime}>{step.time}</Text>
+                      {step.actor && (
+                        <Text style={styles.timelineActor}>• Oleh: {step.actor}</Text>
+                      )}
+                    </View>
                   </View>
                 </View>
               );
@@ -400,11 +412,22 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Colors.textPrimary,
   },
+  timelineMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginTop: 3,
+  },
   timelineTime: {
     fontFamily: Fonts.regular,
     fontSize: 11,
     color: Colors.textMuted,
-    marginTop: 2,
+  },
+  timelineActor: {
+    fontFamily: Fonts.semiBold,
+    fontSize: 11,
+    color: Colors.primaryDark,
   },
   qrSection: {
     marginBottom: Spacing.sectionGap,

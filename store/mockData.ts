@@ -43,7 +43,7 @@ export interface LetterRequest {
   official_number?: string;
   qr_token?: string;
   created_at: string;
-  timeline: { title: string; time: string; done: boolean }[];
+  timeline: { title: string; time: string; done: boolean; actor?: string }[];
   attachments?: { name: string; url: string }[];
   rejection_reason?: string;
   signed_by_name?: string;
