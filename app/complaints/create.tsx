@@ -43,35 +43,63 @@ export default function CreateComplaintScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handlePickImage = async () => {
+  const openImagePicker = async (source: 'camera' | 'gallery') => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        const result = await ImagePicker.launchImageLibraryAsync({
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Izin Kamera Diperlukan', 'Mohon izinkan akses kamera untuk memotret bukti aduan.');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.7,
+        });
+      } else {
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.7,
         });
-
-        if (!result.canceled && result.assets && result.assets[0]) {
-          setPhotoUri(result.assets[0].uri);
-        }
-        return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
-      });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setPhotoUri(result.assets[0].uri);
       }
     } catch (e) {
-      setPhotoUri('https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?w=600&auto=format&fit=crop');
+      Alert.alert('Gagal Mengambil Foto', 'Terjadi kendala saat mengakses kamera atau galeri.');
     }
+  };
+
+  const handlePickImage = (preferredSource?: 'camera' | 'gallery') => {
+    if (preferredSource) {
+      openImagePicker(preferredSource);
+      return;
+    }
+
+    Alert.alert(
+      'Pilih Sumber Foto Aduan',
+      'Pilih cara mengambil foto kondisi fasilitas yang dilaporkan:',
+      [
+        {
+          text: 'Ambil Foto (Kamera)',
+          onPress: () => openImagePicker('camera'),
+        },
+        {
+          text: 'Cari File / Galeri (Storage HP)',
+          onPress: () => openImagePicker('gallery'),
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const handleSubmit = async () => {
@@ -166,7 +194,7 @@ export default function CreateComplaintScreen() {
             <TouchableOpacity
               style={styles.uploadBox}
               activeOpacity={0.8}
-              onPress={handlePickImage}
+              onPress={() => handlePickImage()}
             >
               <View style={styles.uploadIconCircle}>
                 <Ionicons name="camera" size={24} color={Colors.primary} />

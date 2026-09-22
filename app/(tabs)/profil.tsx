@@ -87,35 +87,67 @@ export default function ProfilScreen() {
     Linking.openURL(`https://wa.me/6281234567890?text=${text}`);
   };
 
-  const handlePickDocPhoto = async () => {
+  const openDocPicker = async (source: 'camera' | 'gallery') => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        const result = await ImagePicker.launchImageLibraryAsync({
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Izin Kamera Diperlukan',
+            'Mohon berikan izin akses kamera pada pengaturan perangkat untuk memotret dokumen fisik.'
+          );
+          return;
+        }
+
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
         });
-
-        if (!result.canceled && result.assets && result.assets[0]) {
-          setDocPhotoUri(result.assets[0].uri);
-        }
-        return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setDocPhotoUri(result.assets[0].uri);
       }
     } catch (e) {
-      setDocPhotoUri('https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80');
+      Alert.alert('Gagal Mengambil Berkas', 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.');
     }
+  };
+
+  const handlePickDocPhoto = (preferredSource?: 'camera' | 'gallery') => {
+    if (preferredSource === 'camera' || preferredSource === 'gallery') {
+      openDocPicker(preferredSource);
+      return;
+    }
+
+    Alert.alert(
+      'Pilih Sumber Dokumen',
+      'Pilih cara mengunggah dokumen bukti fisik:',
+      [
+        {
+          text: 'Ambil Foto (Kamera)',
+          onPress: () => openDocPicker('camera'),
+        },
+        {
+          text: 'Cari File / Galeri (Storage HP)',
+          onPress: () => openDocPicker('gallery'),
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const handleAddFamilyMember = async () => {
@@ -167,18 +199,27 @@ export default function ProfilScreen() {
     }
   };
 
-  const handleUploadRevision = async (member: Citizen) => {
+  const performUploadRevision = async (member: Citizen, source: 'camera' | 'gallery') => {
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
       let result: ImagePicker.ImagePickerResult;
 
-      if (status === 'granted') {
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Izin Kamera Diperlukan',
+            'Mohon berikan izin akses kamera pada pengaturan perangkat untuk memotret berkas perbaikan.'
+          );
+          return;
+        }
+
         result = await ImagePicker.launchCameraAsync({
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
         });
       } else {
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: true,
@@ -200,6 +241,27 @@ export default function ProfilScreen() {
     } catch (e) {
       Alert.alert('Gagal', 'Terjadi kendala saat mengambil berkas revisi.');
     }
+  };
+
+  const handleUploadRevision = (member: Citizen) => {
+    Alert.alert(
+      'Unggah Ulang Berkas Revisi',
+      `Pilih sumber dokumen fisik perbaikan untuk ${member.nama_lengkap}:`,
+      [
+        {
+          text: 'Ambil Foto (Kamera)',
+          onPress: () => performUploadRevision(member, 'camera'),
+        },
+        {
+          text: 'Cari File / Galeri (Storage HP)',
+          onPress: () => performUploadRevision(member, 'gallery'),
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
   };
 
   const handleDeleteFamilyMember = (member: Citizen) => {
@@ -697,7 +759,7 @@ export default function ProfilScreen() {
                       <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
                         <TouchableOpacity
                           style={styles.changePhotoBtn}
-                          onPress={handlePickDocPhoto}
+                          onPress={() => handlePickDocPhoto()}
                         >
                           <Ionicons name="camera-reverse" size={13} color={Colors.primaryDark} />
                           <Text style={styles.changePhotoBtnText}>Ganti</Text>
@@ -713,22 +775,31 @@ export default function ProfilScreen() {
                     </View>
                   </View>
                 ) : (
-                  <TouchableOpacity
-                    style={styles.uploadDocDashedBtn}
-                    activeOpacity={0.8}
-                    onPress={handlePickDocPhoto}
-                  >
-                    <View style={styles.uploadDocIconCircle}>
-                      <Ionicons name="camera" size={22} color={Colors.primary} />
-                    </View>
-                    <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={styles.uploadDocTitle}>Ambil / Pilih Foto Dokumen</Text>
-                      <Text style={styles.uploadDocSubtitle}>
-                        Foto KK, Akta Kelahiran, KIA, atau Surat Pindah
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
-                  </TouchableOpacity>
+                  <View style={styles.uploadOptionsRow}>
+                    <TouchableOpacity
+                      style={styles.uploadOptionCard}
+                      activeOpacity={0.82}
+                      onPress={() => handlePickDocPhoto('camera')}
+                    >
+                      <View style={[styles.uploadOptionIconBox, { backgroundColor: '#DCFCE7' }]}>
+                        <Ionicons name="camera" size={22} color="#16A34A" />
+                      </View>
+                      <Text style={styles.uploadOptionTitle}>Ambil Kamera</Text>
+                      <Text style={styles.uploadOptionSub}>Foto fisik langsung</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.uploadOptionCard}
+                      activeOpacity={0.82}
+                      onPress={() => handlePickDocPhoto('gallery')}
+                    >
+                      <View style={[styles.uploadOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
+                        <Ionicons name="folder-open" size={22} color="#D97706" />
+                      </View>
+                      <Text style={styles.uploadOptionTitle}>File / Galeri HP</Text>
+                      <Text style={styles.uploadOptionSub}>Cari file di memori</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             </ScrollView>
@@ -1427,6 +1498,43 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     marginBottom: 8,
+  },
+  uploadOptionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  uploadOptionCard: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    borderRadius: Spacing.radiusLg,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadOptionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  uploadOptionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  uploadOptionSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 10.5,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
   },
   uploadDocDashedBtn: {
     flexDirection: 'row',
