@@ -44,6 +44,7 @@ export interface LetterRequest {
   qr_token?: string;
   created_at: string;
   timeline: { title: string; time: string; done: boolean }[];
+  attachments?: { name: string; url: string }[];
 }
 
 export interface Complaint {

@@ -2,6 +2,7 @@
 import { Config } from '@/constants/Config';
 import { supabase } from './supabase';
 import { auth } from './auth';
+import { uploadImageToSupabase } from './storage';
 import {
   mockUser,
   mockFamilyMembers,
@@ -218,6 +219,11 @@ class ApiService {
     const current = await this.getCurrentUser();
     const noKk = current.no_kk || '3201010000000001';
 
+    let cloudPhotoPath = payload.foto_kk_path || '';
+    if (cloudPhotoPath && cloudPhotoPath.startsWith('file://')) {
+      cloudPhotoPath = await uploadImageToSupabase(cloudPhotoPath, 'citizens', (payload as any).base64);
+    }
+
     const insertPayload: any = {
       nik: cleanNik,
       no_kk: noKk,
@@ -231,7 +237,7 @@ class ApiService {
       dusun: current.dusun || 'Dusun Mekar',
       alamat_lengkap: `Kp. Sukamaju, RT ${current.rt || '01'}/RW ${current.rw || '01'}, Desa ${Config.villageName}`,
       phone_number: payload.phone_number || '',
-      foto_kk_path: payload.foto_kk_path || '',
+      foto_kk_path: cloudPhotoPath,
       is_verified: false,
     };
 
@@ -257,7 +263,7 @@ class ApiService {
           dusun: data.dusun || current.dusun,
           is_verified: false,
           verification_status: 'pending',
-          foto_kk_path: data.foto_kk_path || payload.foto_kk_path,
+          foto_kk_path: data.foto_kk_path || cloudPhotoPath,
           document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
         };
         this.localFamilyMembers.push(newCitizen);
@@ -289,19 +295,24 @@ class ApiService {
       dusun: current.dusun || 'Dusun Mekar',
       is_verified: false,
       verification_status: 'pending',
-      foto_kk_path: payload.foto_kk_path,
+      foto_kk_path: cloudPhotoPath,
       document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
     };
     this.localFamilyMembers.push(localCitizen);
     return { success: true, data: localCitizen };
   }
 
-  async updateFamilyMemberDocument(citizenId: string, photoUri: string): Promise<{ success: boolean; message?: string }> {
+  async updateFamilyMemberDocument(citizenId: string, photoUri: string, base64?: string): Promise<{ success: boolean; message?: string }> {
+    let cloudPhotoUrl = photoUri;
+    if (cloudPhotoUrl && cloudPhotoUrl.startsWith('file://')) {
+      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'citizens', base64);
+    }
+
     try {
       const { error } = await supabase
         .from('citizens')
         .update({
-          foto_kk_path: photoUri,
+          foto_kk_path: cloudPhotoUrl,
           is_verified: false,
           verified_by: null, // Reset status revisi kembali ke pending setelah diunggah ulang
           updated_at: new Date().toISOString()
@@ -319,7 +330,7 @@ class ApiService {
     if (idx !== -1) {
       this.localFamilyMembers[idx] = {
         ...this.localFamilyMembers[idx],
-        foto_kk_path: photoUri,
+        foto_kk_path: cloudPhotoUrl,
         is_verified: false,
         verification_status: 'pending',
         rejection_reason: undefined,
@@ -444,7 +455,7 @@ class ApiService {
     letter_type_id: number;
     citizen_id: string;
     purpose: string;
-    attachments?: string[];
+    attachments?: Array<{ name: string; url: string }> | string[];
   }): Promise<LetterRequest> {
     const selectedType = mockLetterTypes.find(t => t.id === payload.letter_type_id);
     const familyList = await this.getFamilyMembers();
@@ -460,6 +471,20 @@ class ApiService {
       { title: 'Tanda Tangan Elektronik QR Kades', time: '-', done: false },
     ];
 
+    // Upload berkas lampiran ke Supabase Cloud Storage
+    const processedAttachments: Array<{ name: string; url: string }> = [];
+    if (Array.isArray(payload.attachments)) {
+      for (const item of payload.attachments) {
+        if (typeof item === 'string') {
+          const cloudUrl = await uploadImageToSupabase(item, 'letters');
+          processedAttachments.push({ name: 'Dokumen Persyaratan', url: cloudUrl });
+        } else if (item && typeof item === 'object') {
+          const cloudUrl = await uploadImageToSupabase(item.url, 'letters');
+          processedAttachments.push({ name: item.name || 'Dokumen Persyaratan', url: cloudUrl });
+        }
+      }
+    }
+
     const newRequest: LetterRequest = {
       id: `req-${Date.now()}`,
       tracking_number: trackingNumber,
@@ -471,7 +496,8 @@ class ApiService {
       status: 'submitted',
       purpose: payload.purpose,
       created_at: 'Baru saja',
-      timeline: timelineData
+      timeline: timelineData,
+      attachments: processedAttachments as any
     };
 
     // Insert to Supabase
@@ -490,7 +516,8 @@ class ApiService {
           citizen_address: `Kp. Sukamaju RT ${selectedCitizen.rt || '02'} / RW ${selectedCitizen.rw || '01'}, ${selectedCitizen.dusun || 'Dusun Mekar'}`,
           status: 'submitted',
           purpose: payload.purpose,
-          timeline: timelineData
+          timeline: timelineData,
+          attachments: processedAttachments
         })
         .select('*')
         .single();
@@ -549,6 +576,11 @@ class ApiService {
     const now = new Date();
     const ticketNumber = `ADU-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    let cloudPhotoUrl = payload.photo_url;
+    if (cloudPhotoUrl && cloudPhotoUrl.startsWith('file://')) {
+      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'complaints');
+    }
+
     const newComplaint: Complaint = {
       id: `cmp-${Date.now()}`,
       ticket_number: ticketNumber,
@@ -559,7 +591,7 @@ class ApiService {
       reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : this.currentCitizen.nama_lengkap,
       is_anonymous: payload.is_anonymous,
       status: 'submitted',
-      photo_url: payload.photo_url,
+      photo_url: cloudPhotoUrl,
       created_at: 'Baru saja'
     };
 
@@ -577,7 +609,7 @@ class ApiService {
           reporter_phone: '081234567890',
           is_anonymous: payload.is_anonymous,
           status: 'submitted',
-          photo_url: payload.photo_url
+          photo_url: cloudPhotoUrl
         })
         .select('*')
         .single();

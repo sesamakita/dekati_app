@@ -59,6 +59,7 @@ export default function ProfilScreen() {
   const [newJob, setNewJob] = useState('Pelajar/Mahasiswa');
   const [selectedDocType, setSelectedDocType] = useState(DOCUMENT_TYPES[0]);
   const [docPhotoUri, setDocPhotoUri] = useState<string | null>(null);
+  const [docPhotoBase64, setDocPhotoBase64] = useState<string | null>(null);
   const [savingMember, setSavingMember] = useState(false);
 
   // State Preview Foto Dokumen
@@ -105,6 +106,7 @@ export default function ProfilScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       } else {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -113,11 +115,13 @@ export default function ProfilScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       }
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setDocPhotoUri(result.assets[0].uri);
+        setDocPhotoBase64(result.assets[0].base64 || null);
       }
     } catch (e) {
       Alert.alert('Gagal Mengambil Berkas', 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.');
@@ -171,7 +175,8 @@ export default function ProfilScreen() {
         pekerjaan: newJob.trim() || 'Pelajar/Belum Bekerja',
         foto_kk_path: docPhotoUri || undefined,
         document_type: selectedDocType,
-      });
+        base64: docPhotoBase64 || undefined,
+      } as any);
 
       if (res.success) {
         Alert.alert(
@@ -187,6 +192,7 @@ export default function ProfilScreen() {
         setNewBirthDate('');
         setNewJob('Pelajar/Mahasiswa');
         setDocPhotoUri(null);
+        setDocPhotoBase64(null);
         setSelectedDocType(DOCUMENT_TYPES[0]);
         setShowAddModal(false);
       } else {
@@ -217,6 +223,7 @@ export default function ProfilScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       } else {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -225,12 +232,13 @@ export default function ProfilScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       }
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const newUri = result.assets[0].uri;
-        await api.updateFamilyMemberDocument(member.id, newUri);
+        await api.updateFamilyMemberDocument(member.id, newUri, result.assets[0].base64 || undefined);
         const updated = await api.getFamilyMembers();
         setFamilyMembers(updated);
         Alert.alert(

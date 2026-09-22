@@ -87,6 +87,7 @@ export default function CreateLetterScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       } else {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -95,6 +96,7 @@ export default function CreateLetterScreen() {
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
+          base64: true,
         });
       }
 
@@ -151,11 +153,15 @@ export default function CreateLetterScreen() {
 
     setSubmitting(true);
     try {
+      const formattedAttachments = Object.entries(uploadedDocs)
+        .filter(([_, url]) => Boolean(url))
+        .map(([name, url]) => ({ name, url }));
+
       const res = await api.submitLetterRequest({
         letter_type_id: selectedTypeId,
         citizen_id: selectedCitizenId,
         purpose: purpose,
-        attachments: Object.values(uploadedDocs).filter(Boolean),
+        attachments: formattedAttachments,
       });
 
       Alert.alert(
