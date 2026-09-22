@@ -8,11 +8,15 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
+  Modal,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/Colors';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
@@ -28,10 +32,8 @@ export default function CreateLetterScreen() {
   const [familyMembers, setFamilyMembers] = useState<Citizen[]>([]);
   const [selectedCitizenId, setSelectedCitizenId] = useState<string>('');
   const [purpose, setPurpose] = useState('');
-  const [uploadedDocs, setUploadedDocs] = useState<Record<string, boolean>>({
-    'Foto KTP Pemohon': true,
-    'Foto Kartu Keluarga (KK)': true,
-  });
+  const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({});
+  const [previewDocUri, setPreviewDocUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -42,6 +44,13 @@ export default function CreateLetterScreen() {
       setFamilyMembers(family);
       if (family.length > 0) {
         setSelectedCitizenId(family[0].id);
+        if (family[0].foto_kk_path) {
+          setUploadedDocs((prev) => ({
+            ...prev,
+            'Foto Kartu Keluarga (KK)': family[0].foto_kk_path!,
+            'Foto KK': family[0].foto_kk_path!,
+          }));
+        }
       }
     };
     init();
@@ -49,11 +58,89 @@ export default function CreateLetterScreen() {
 
   const selectedType = types.find((t) => t.id === selectedTypeId) || types[0];
 
-  const handleToggleDoc = (docName: string) => {
-    setUploadedDocs((prev) => ({
-      ...prev,
-      [docName]: !prev[docName],
-    }));
+  const handleSelectCitizen = (member: Citizen) => {
+    setSelectedCitizenId(member.id);
+    if (member.foto_kk_path) {
+      setUploadedDocs((prev) => ({
+        ...prev,
+        'Foto Kartu Keluarga (KK)': member.foto_kk_path!,
+        'Foto KK': member.foto_kk_path!,
+      }));
+    }
+  };
+
+  const openDocPicker = async (docName: string, source: 'camera' | 'gallery') => {
+    try {
+      let result: ImagePicker.ImagePickerResult;
+
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Izin Kamera Diperlukan',
+            'Mohon berikan izin akses kamera pada pengaturan perangkat untuk memotret dokumen persyaratan.'
+          );
+          return;
+        }
+
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setUploadedDocs((prev) => ({
+          ...prev,
+          [docName]: result.assets[0].uri,
+        }));
+      }
+    } catch (e) {
+      Alert.alert('Gagal Mengambil Berkas', 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.');
+    }
+  };
+
+  const handlePickDocument = (docName: string, preferredSource?: 'camera' | 'gallery') => {
+    if (preferredSource === 'camera' || preferredSource === 'gallery') {
+      openDocPicker(docName, preferredSource);
+      return;
+    }
+
+    Alert.alert(
+      `Lampirkan ${docName}`,
+      'Pilih sumber dokumen persyaratan surat:',
+      [
+        {
+          text: 'Ambil Foto (Kamera)',
+          onPress: () => openDocPicker(docName, 'camera'),
+        },
+        {
+          text: 'Cari File / Galeri (Storage HP)',
+          onPress: () => openDocPicker(docName, 'gallery'),
+        },
+        {
+          text: 'Batal',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handleRemoveDocument = (docName: string) => {
+    setUploadedDocs((prev) => {
+      const next = { ...prev };
+      delete next[docName];
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -68,6 +155,7 @@ export default function CreateLetterScreen() {
         letter_type_id: selectedTypeId,
         citizen_id: selectedCitizenId,
         purpose: purpose,
+        attachments: Object.values(uploadedDocs).filter(Boolean),
       });
 
       Alert.alert(
@@ -143,7 +231,7 @@ export default function CreateLetterScreen() {
                   key={m.id}
                   style={[styles.memberCard, isSelected && styles.memberCardSelected]}
                   activeOpacity={0.8}
-                  onPress={() => setSelectedCitizenId(m.id)}
+                  onPress={() => handleSelectCitizen(m)}
                 >
                   <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
                     {isSelected && <View style={styles.radioInner} />}
@@ -180,35 +268,104 @@ export default function CreateLetterScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>4. Dokumen Persyaratan</Text>
           <Text style={styles.sectionSub}>
-            Pastikan berkas terunggah jelas untuk mempercepat proses verifikasi:
+            Lampirkan foto fisik atau file dari memori HP untuk mempercepat proses verifikasi:
           </Text>
 
           {selectedType?.required_docs.map((doc, idx) => {
-            const isUploaded = !!uploadedDocs[doc];
+            const docUri = uploadedDocs[doc];
+            const isUploaded = !!docUri;
+
+            if (isUploaded) {
+              return (
+                <View key={idx} style={[styles.docCard, styles.docCardAttached]}>
+                  <View style={styles.docAttachedRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => setPreviewDocUri(docUri)}
+                      style={styles.docThumbnailWrapper}
+                    >
+                      <Image source={{ uri: docUri }} style={styles.docThumbnail} />
+                      <View style={styles.zoomBadge}>
+                        <Ionicons name="scan" size={11} color="#FFFFFF" />
+                      </View>
+                    </TouchableOpacity>
+
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.docName}>{doc}</Text>
+                        <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+                      </View>
+                      <Text style={styles.docAttachedSub}>Dokumen fisik siap dilampirkan</Text>
+
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={styles.docActionMiniBtn}
+                          activeOpacity={0.8}
+                          onPress={() => handlePickDocument(doc)}
+                        >
+                          <Ionicons name="camera-reverse" size={12} color={Colors.primaryDark} />
+                          <Text style={styles.docActionMiniText}>Ganti</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.docActionMiniBtn, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}
+                          activeOpacity={0.8}
+                          onPress={() => handleRemoveDocument(doc)}
+                        >
+                          <Ionicons name="trash" size={12} color="#DC2626" />
+                          <Text style={[styles.docActionMiniText, { color: '#DC2626' }]}>Hapus</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.docActionMiniBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                          activeOpacity={0.8}
+                          onPress={() => setPreviewDocUri(docUri)}
+                        >
+                          <Ionicons name="eye" size={12} color={Colors.textSecondary} />
+                          <Text style={[styles.docActionMiniText, { color: Colors.textSecondary }]}>Lihat</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            }
+
             return (
-              <TouchableOpacity
-                key={idx}
-                style={styles.docItem}
-                activeOpacity={0.8}
-                onPress={() => handleToggleDoc(doc)}
-              >
-                <View style={[styles.docIconCircle, isUploaded && styles.docIconCircleDone]}>
-                  <Ionicons
-                    name={isUploaded ? 'checkmark' : 'cloud-upload-outline'}
-                    size={18}
-                    color={isUploaded ? '#FFFFFF' : Colors.primary}
-                  />
+              <View key={idx} style={styles.docCard}>
+                <View style={styles.docCardHeader}>
+                  <View style={styles.docCardIconCircle}>
+                    <Ionicons name="document-text" size={17} color={Colors.primaryDark} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.docName}>{doc}</Text>
+                    <Text style={styles.docStatusUnattached}>Belum dilampirkan</Text>
+                  </View>
+                  <View style={styles.docRequiredBadge}>
+                    <Text style={styles.docRequiredBadgeText}>Wajib</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.docName}>{doc}</Text>
-                  <Text style={styles.docStatus}>
-                    {isUploaded ? 'Berkas Kependudukan Siap' : 'Ketuk untuk melampirkan foto'}
-                  </Text>
+
+                <View style={styles.docActionButtonsRow}>
+                  <TouchableOpacity
+                    style={styles.docActionBtnCamera}
+                    activeOpacity={0.82}
+                    onPress={() => handlePickDocument(doc, 'camera')}
+                  >
+                    <Ionicons name="camera" size={15} color="#16A34A" />
+                    <Text style={styles.docActionBtnCameraText}>Ambil Kamera</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.docActionBtnGallery}
+                    activeOpacity={0.82}
+                    onPress={() => handlePickDocument(doc, 'gallery')}
+                  >
+                    <Ionicons name="folder-open" size={15} color="#D97706" />
+                    <Text style={styles.docActionBtnGalleryText}>File / Galeri HP</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={[styles.docAction, isUploaded && styles.docActionDone]}>
-                  {isUploaded ? 'Terlampir' : 'Unggah'}
-                </Text>
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -226,6 +383,48 @@ export default function CreateLetterScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* MODAL PREVIEW DOKUMEN */}
+      <Modal
+        visible={!!previewDocUri}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewDocUri(null)}
+      >
+        <View style={styles.previewOverlay}>
+          <SafeAreaView style={styles.previewContainer}>
+            <View style={styles.previewTopBar}>
+              <View>
+                <Text style={styles.previewTitle}>Pratinjau Dokumen Syarat</Text>
+                <Text style={styles.previewSub}>Lampiran permohonan surat kependudukan</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.previewCloseBtn}
+                onPress={() => setPreviewDocUri(null)}
+              >
+                <Ionicons name="close" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.previewImageWrapper}>
+              {previewDocUri && (
+                <Image
+                  source={{ uri: previewDocUri }}
+                  style={styles.previewImage}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+            <View style={styles.previewBottomBar}>
+              <TouchableOpacity
+                style={styles.previewDoneBtn}
+                onPress={() => setPreviewDocUri(null)}
+              >
+                <Text style={styles.previewDoneBtnText}>Tutup Tampilan</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -374,45 +573,195 @@ const styles = StyleSheet.create({
     minHeight: 100,
     lineHeight: 20,
   },
-  docItem: {
+  docCard: {
+    backgroundColor: Colors.surface,
+    padding: 14,
+    borderRadius: Spacing.radiusLg,
+    borderWidth: 1.5,
+    borderColor: Colors.surfaceBorder,
+    marginBottom: 12,
+  },
+  docCardAttached: {
+    borderColor: '#86EFAC',
+    backgroundColor: '#F0FDF4',
+  },
+  docCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: Spacing.cardPadding,
-    borderRadius: Spacing.radiusLg,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
     marginBottom: 10,
   },
-  docIconCircle: {
+  docCardIconCircle: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.bento.hero.bg,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  docIconCircleDone: {
-    backgroundColor: Colors.primary,
   },
   docName: {
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: Colors.textPrimary,
   },
-  docStatus: {
+  docStatusUnattached: {
     fontFamily: Fonts.regular,
-    fontSize: 11.5,
+    fontSize: 11,
     color: Colors.textMuted,
+    marginTop: 1,
+  },
+  docRequiredBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  docRequiredBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: '#D97706',
+  },
+  docActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  docActionBtnCamera: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingVertical: 9,
+    borderRadius: Spacing.radiusMd,
+    gap: 6,
+  },
+  docActionBtnCameraText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: '#16A34A',
+  },
+  docActionBtnGallery: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingVertical: 9,
+    borderRadius: Spacing.radiusMd,
+    gap: 6,
+  },
+  docActionBtnGalleryText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: '#D97706',
+  },
+  docAttachedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  docThumbnailWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: Spacing.radiusMd,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  docThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  zoomBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 4,
+    padding: 2,
+  },
+  docAttachedSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: '#16A34A',
     marginTop: 2,
   },
-  docAction: {
-    fontFamily: Fonts.bold,
-    fontSize: 12,
-    color: Colors.primary,
+  docActionMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.bento.hero.bg,
+    borderWidth: 1,
+    borderColor: Colors.bento.hero.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
   },
-  docActionDone: {
+  docActionMiniText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
     color: Colors.primaryDark,
+  },
+  // FULLSCREEN PREVIEW MODAL
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+  },
+  previewContainer: {
+    flex: 1,
+  },
+  previewTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  previewTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  previewSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  previewCloseBtn: {
+    padding: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+  },
+  previewImageWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewBottomBar: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    alignItems: 'center',
+  },
+  previewDoneBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: Spacing.radiusFull,
+  },
+  previewDoneBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: '#FFFFFF',
   },
   submitButton: {
     flexDirection: 'row',
