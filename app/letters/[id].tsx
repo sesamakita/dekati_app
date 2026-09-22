@@ -1,5 +1,4 @@
-// app/letters/[id].tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
+import { supabase } from '@/services/supabase';
 import { Header } from '@/components/common/Header';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LetterRequest } from '@/store/mockData';
@@ -25,16 +26,43 @@ import { LetterRequest } from '@/store/mockData';
 export default function LetterDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [request, setRequest] = useState<LetterRequest | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchDetail = useCallback(async () => {
+    if (id) {
+      const data = await api.getLetterRequestByTracking(id);
+      setRequest(data);
+    }
+  }, [id]);
 
   useEffect(() => {
-    const fetchDetail = async () => {
-      if (id) {
-        const data = await api.getLetterRequestByTracking(id);
-        setRequest(data);
-      }
-    };
     fetchDetail();
-  }, [id]);
+
+    // Berlangganan Supabase Realtime untuk memperbarui alur proses secara instan saat operator desa memproses berkas
+    const channel = supabase
+      .channel(`detail-letter-realtime-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'letter_requests' },
+        (payload) => {
+          const row = payload.new as any;
+          if (row && (row.tracking_number === id || row.id === id)) {
+            fetchDetail();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, fetchDetail]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchDetail();
+    setRefreshing(false);
+  };
 
   if (!request) {
     return (
@@ -73,6 +101,14 @@ export default function LetterDetailScreen() {
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {/* CARD RINGKASAN SURAT */}
         <View style={styles.summaryCard}>
@@ -106,12 +142,30 @@ export default function LetterDetailScreen() {
           )}
         </View>
 
-        {/* TIMELINE PROSES */}
+        {/* NOTIFIKASI PENOLAKAN JIKA DITOLAK */}
+        {request.status === 'rejected' && (
+          <View style={styles.rejectionCard}>
+            <View style={styles.rejectionHeader}>
+              <Ionicons name="alert-circle" size={20} color="#DC2626" />
+              <Text style={styles.rejectionTitle}>Permohonan Tidak Disetujui</Text>
+            </View>
+            <Text style={styles.rejectionReason}>
+              Catatan Petugas: {request.rejection_reason || 'Persyaratan dokumen belum memenuhi ketentuan resmi desa.'}
+            </Text>
+          </View>
+        )}
+
+        {/* TIMELINE PROSES VERIFIKASI */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Riwayat Proses Verifikasi</Text>
           <View style={styles.timelineContainer}>
-            {request.timeline.map((step, idx) => {
-              const isLast = idx === request.timeline.length - 1;
+            {(Array.isArray(request.timeline) && request.timeline.length > 0 ? request.timeline : [
+              { title: 'Permohonan Dikirim Warga', time: request.created_at || 'Baru saja', done: true },
+              { title: 'Pemeriksaan Berkas Operator', time: '-', done: false },
+              { title: 'Penerbitan Nomor Resmi Desa', time: '-', done: false },
+              { title: 'Tanda Tangan Elektronik QR Kades', time: '-', done: false },
+            ]).map((step, idx, arr) => {
+              const isLast = idx === arr.length - 1;
               return (
                 <View key={idx} style={styles.timelineItem}>
                   <View style={styles.timelineIndicator}>
@@ -442,5 +496,30 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: '#15803D',
     fontSize: 13,
+  },
+  rejectionCard: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FECACA',
+    borderRadius: Spacing.radiusXl,
+    padding: Spacing.cardPadding,
+    marginBottom: Spacing.cardGap,
+  },
+  rejectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  rejectionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 14,
+    color: '#DC2626',
+  },
+  rejectionReason: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: '#7F1D1D',
+    lineHeight: 18,
   },
 });

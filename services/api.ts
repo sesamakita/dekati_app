@@ -386,15 +386,86 @@ class ApiService {
     return mockLetterTypes;
   }
 
+  // Helper untuk memformat alur verifikasi surat secara terstruktur dan sinkron
+  private formatTimelineSteps(
+    rawTimeline: any,
+    status: string,
+    createdAt?: string,
+    officialNumber?: string,
+    signedBy?: string
+  ): { title: string; time: string; done: boolean; actor?: string }[] {
+    let parsed: any[] = [];
+    if (Array.isArray(rawTimeline)) {
+      parsed = rawTimeline;
+    } else if (typeof rawTimeline === 'string') {
+      try {
+        const p = JSON.parse(rawTimeline);
+        if (Array.isArray(p)) parsed = p;
+      } catch {
+        parsed = [];
+      }
+    }
+
+    const createdTimeStr = createdAt
+      ? `${new Date(createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} ${new Date(createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`
+      : 'Baru saja';
+
+    const isSubmitted = true;
+    const isInVerification = ['in_verification', 'approved', 'signed', 'completed'].includes(status);
+    const isApproved = ['approved', 'signed', 'completed'].includes(status);
+    const isSigned = ['signed', 'completed'].includes(status);
+    const isRejected = status === 'rejected';
+
+    const findTime = (keyword: string, fallbackTime = '-') => {
+      const found = parsed.find((p) => p && p.title && p.title.toLowerCase().includes(keyword.toLowerCase()) && p.done);
+      return found ? found.time : fallbackTime;
+    };
+
+    return [
+      {
+        title: 'Permohonan Dikirim Warga',
+        time: findTime('dikirim', createdTimeStr),
+        done: isSubmitted,
+      },
+      {
+        title: isRejected
+          ? (parsed.find((p) => p && p.title?.toLowerCase().includes('ditolak'))?.title || 'Pengajuan Ditolak Petugas')
+          : 'Pemeriksaan Berkas Operator Pelayanan',
+        time: isRejected
+          ? findTime('ditolak', 'Selesai diverifikasi')
+          : findTime('pemeriksaan', isInVerification ? 'Sedang diverifikasi' : '-'),
+        done: isInVerification || isRejected,
+        actor: 'Operator Pelayanan',
+      },
+      {
+        title: officialNumber
+          ? `Penerbitan No. Registrasi Desa (${officialNumber})`
+          : 'Penerbitan Nomor Registrasi Surat Desa',
+        time: findTime('nomor', isApproved ? 'Nomor Terbit' : '-'),
+        done: isApproved,
+        actor: 'Sekretariat Desa',
+      },
+      {
+        title: isSigned
+          ? `Tanda Tangan Elektronik QR Disahkan (${signedBy || 'Kepala Desa'})`
+          : 'Pengesahan TTE QR Kepala Desa',
+        time: findTime('tanda tangan', isSigned ? 'Telah Disahkan' : '-'),
+        done: isSigned,
+        actor: signedBy || 'Kepala Desa',
+      },
+    ];
+  }
+
   async getLetterRequests(): Promise<LetterRequest[]> {
+    let cloudRequests: LetterRequest[] = [];
     try {
       const { data, error } = await supabase
         .from('letter_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        return data.map((d: any) => ({
+      if (!error && data && Array.isArray(data) && data.length > 0) {
+        cloudRequests = data.map((d: any) => ({
           id: d.id,
           tracking_number: d.tracking_number,
           letter_type_id: d.letter_type_id || 1,
@@ -407,23 +478,31 @@ class ApiService {
           official_number: d.letter_official_number,
           qr_token: d.qr_verification_token,
           created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
-          timeline: Array.isArray(d.timeline) && d.timeline.length > 0 ? d.timeline : [
-            { title: 'Permohonan Dikirim Warga', time: 'Baru saja', done: true }
-          ]
+          timeline: this.formatTimelineSteps(d.timeline, d.status, d.created_at, d.letter_official_number, d.signed_by_name),
         }));
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getLetterRequests offline fallback.', err);
     }
-    return this.localLetterRequests;
+
+    // Gabungkan data dari Supabase dengan data lokal sesi
+    const combined = [...cloudRequests];
+    for (const local of this.localLetterRequests) {
+      if (!combined.some((c) => c.id === local.id || c.tracking_number === local.tracking_number)) {
+        combined.push(local);
+      }
+    }
+
+    return combined.length > 0 ? combined : this.localLetterRequests;
   }
 
   async getLetterRequestByTracking(trackingNumber: string): Promise<LetterRequest> {
+    const cleanId = (trackingNumber || '').trim();
     try {
       const { data, error } = await supabase
         .from('letter_requests')
         .select('*')
-        .eq('tracking_number', trackingNumber)
+        .or(`tracking_number.eq.${cleanId},id.eq.${cleanId}`)
         .maybeSingle();
 
       if (!error && data) {
@@ -440,14 +519,15 @@ class ApiService {
           official_number: data.letter_official_number,
           qr_token: data.qr_verification_token,
           created_at: data.created_at ? new Date(data.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
-          timeline: Array.isArray(data.timeline) ? data.timeline : []
+          timeline: this.formatTimelineSteps(data.timeline, data.status, data.created_at, data.letter_official_number, data.signed_by_name),
+          attachments: Array.isArray(data.attachments) ? data.attachments : []
         };
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getLetterRequestByTracking fallback.', err);
     }
 
-    const fallback = this.localLetterRequests.find(r => r.tracking_number === trackingNumber) || this.localLetterRequests[0];
+    const fallback = this.localLetterRequests.find((r) => r.tracking_number === cleanId || r.id === cleanId) || this.localLetterRequests[0];
     return fallback;
   }
 

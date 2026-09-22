@@ -1,5 +1,4 @@
-// app/(tabs)/surat.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,13 +7,14 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
+import { supabase } from '@/services/supabase';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LetterType, LetterRequest } from '@/store/mockData';
 
@@ -36,8 +36,31 @@ export default function SuratScreen() {
     }
   };
 
+  // Muat data setiap kali tab Surat dibuka / menjadi fokus aktif
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  // Berlangganan Realtime Supabase agar status permohonan langsung terupdate jika admin web memprosesnya
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel('mobile-surat-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'letter_requests' },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const onRefresh = async () => {

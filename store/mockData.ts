@@ -45,6 +45,8 @@ export interface LetterRequest {
   created_at: string;
   timeline: { title: string; time: string; done: boolean }[];
   attachments?: { name: string; url: string }[];
+  rejection_reason?: string;
+  signed_by_name?: string;
 }
 
 export interface Complaint {
