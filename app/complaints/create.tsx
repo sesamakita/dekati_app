@@ -23,6 +23,7 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Header } from '@/components/common/Header';
+import { LocationPickerModal } from '@/components/common/LocationPickerModal';
 
 const CATEGORIES = [
   'Jalan Rusak / Berlubang',
@@ -33,20 +34,29 @@ const CATEGORIES = [
   'Pelayanan Aparatur Desa',
 ];
 
+interface EvidencePhoto {
+  uri: string;
+  base64?: string | null;
+}
+
 export default function CreateComplaintScreen() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('Dusun Mekar, RT 03 / RW 01');
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number }>({
+    latitude: -6.2088,
+    longitude: 106.8456,
+  });
   const [useGps, setUseGps] = useState(true);
+  const [showMapModal, setShowMapModal] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(true);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<EvidencePhoto[]>([]);
   const [previewModalUri, setPreviewModalUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const openImagePicker = async (source: 'camera' | 'gallery') => {
+  const openImagePicker = async (source: 'camera' | 'gallery', targetIndex?: number | null) => {
     try {
       let result: ImagePicker.ImagePickerResult;
 
@@ -59,7 +69,7 @@ export default function CreateComplaintScreen() {
         result = await ImagePicker.launchCameraAsync({
           allowsEditing: true,
           aspect: [4, 3],
-          quality: 0.7,
+          quality: 0.8,
           base64: true,
         });
       } else {
@@ -68,37 +78,55 @@ export default function CreateComplaintScreen() {
           mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [4, 3],
-          quality: 0.7,
+          quality: 0.8,
           base64: true,
         });
       }
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        setPhotoUri(result.assets[0].uri);
-        setPhotoBase64(result.assets[0].base64 || null);
+        const newPhoto: EvidencePhoto = {
+          uri: result.assets[0].uri,
+          base64: result.assets[0].base64 || null,
+        };
+
+        if (typeof targetIndex === 'number' && targetIndex >= 0) {
+          setPhotos((prev) => {
+            const next = [...prev];
+            next[targetIndex] = newPhoto;
+            return next;
+          });
+        } else {
+          setPhotos((prev) => {
+            if (prev.length >= 3) {
+              Alert.alert('Batas Maksimal', 'Anda hanya dapat melampirkan maksimal 3 foto bukti.');
+              return prev;
+            }
+            return [...prev, newPhoto];
+          });
+        }
       }
     } catch (e) {
       Alert.alert('Gagal Mengambil Foto', 'Terjadi kendala saat mengakses kamera atau galeri.');
     }
   };
 
-  const handlePickImage = (preferredSource?: 'camera' | 'gallery') => {
+  const handlePickImage = (preferredSource?: 'camera' | 'gallery', targetIndex?: number | null) => {
     if (preferredSource) {
-      openImagePicker(preferredSource);
+      openImagePicker(preferredSource, targetIndex);
       return;
     }
 
     Alert.alert(
-      'Pilih Sumber Foto Aduan',
+      typeof targetIndex === 'number' ? 'Ganti Foto Bukti' : 'Pilih Sumber Foto Aduan',
       'Pilih cara mengambil foto kondisi fasilitas yang dilaporkan:',
       [
         {
           text: 'Ambil Foto (Kamera)',
-          onPress: () => openImagePicker('camera'),
+          onPress: () => openImagePicker('camera', targetIndex),
         },
         {
           text: 'Cari File / Galeri (Storage HP)',
-          onPress: () => openImagePicker('gallery'),
+          onPress: () => openImagePicker('gallery', targetIndex),
         },
         {
           text: 'Batal',
@@ -106,6 +134,17 @@ export default function CreateComplaintScreen() {
         },
       ]
     );
+  };
+
+  const handleRemovePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleToggleGps = (value: boolean) => {
+    setUseGps(value);
+    if (value) {
+      setShowMapModal(true);
+    }
   };
 
   const handleSubmit = async () => {
@@ -116,14 +155,20 @@ export default function CreateComplaintScreen() {
 
     setSubmitting(true);
     try {
+      const gpsLocationString = useGps
+        ? `${location} (GPS: ${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)})`
+        : location;
+
       const res = await api.submitComplaint({
         category: selectedCategory,
         title: title,
         description: description,
-        location: location + (useGps ? ' (GPS: -6.2088, 106.8456)' : ''),
+        location: gpsLocationString,
         is_anonymous: isAnonymous,
-        photo_url: photoUri || undefined,
-        base64: photoBase64,
+        photos: photos,
+        photo_url: photos[0]?.uri || undefined,
+        latitude: useGps ? coords.latitude : undefined,
+        longitude: useGps ? coords.longitude : undefined,
       } as any);
 
       Alert.alert(
@@ -178,69 +223,79 @@ export default function CreateComplaintScreen() {
           </View>
         </View>
 
-        {/* FOTO BUKTI / LAMPIRAN */}
+        {/* FOTO BUKTI / LAMPIRAN (MAKSIMAL 3 FOTO) */}
         <View style={styles.section}>
-          <Text style={styles.label}>2. Foto Bukti di Lapangan</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <Text style={styles.label}>2. Foto Bukti di Lapangan</Text>
+            <View style={styles.counterBadge}>
+              <Text style={styles.counterBadgeText}>{photos.length}/3 Foto</Text>
+            </View>
+          </View>
           <Text style={styles.helper}>
-            Sertakan foto kondisi nyata fasilitas agar petugas desa dapat langsung menilai:
+            Sertakan hingga maksimal 3 foto kondisi nyata fasilitas agar petugas desa dapat langsung menilai:
           </Text>
 
-          {photoUri ? (
-            <View style={styles.docCardAttached}>
-              <View style={styles.docAttachedRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setPreviewModalUri(photoUri)}
-                  style={styles.docThumbnailWrapper}
-                >
-                  <Image source={{ uri: photoUri }} style={styles.docThumbnail} />
-                  <View style={styles.zoomBadge}>
-                    <Ionicons name="scan" size={11} color="#FFFFFF" />
-                  </View>
-                </TouchableOpacity>
-
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.docAttachedTitle}>Foto Bukti di Lapangan</Text>
-                    <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
-                  </View>
-                  <Text style={styles.docAttachedSub}>Foto bukti fisik siap dikirim ke petugas desa</Text>
-
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+          {/* LIST FOTO YANG SUDAH DILAMPIRKAN */}
+          {photos.length > 0 && (
+            <View style={{ gap: 10, marginBottom: photos.length < 3 ? 12 : 0 }}>
+              {photos.map((item, index) => (
+                <View key={index} style={styles.docCardAttached}>
+                  <View style={styles.docAttachedRow}>
                     <TouchableOpacity
-                      style={styles.docActionMiniBtn}
-                      activeOpacity={0.8}
-                      onPress={() => handlePickImage()}
+                      activeOpacity={0.85}
+                      onPress={() => setPreviewModalUri(item.uri)}
+                      style={styles.docThumbnailWrapper}
                     >
-                      <Ionicons name="camera-reverse" size={12} color={Colors.primaryDark} />
-                      <Text style={styles.docActionMiniText}>Ganti</Text>
+                      <Image source={{ uri: item.uri }} style={styles.docThumbnail} />
+                      <View style={styles.zoomBadge}>
+                        <Ionicons name="scan" size={11} color="#FFFFFF" />
+                      </View>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={[styles.docActionMiniBtn, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        setPhotoUri(null);
-                        setPhotoBase64(null);
-                      }}
-                    >
-                      <Ionicons name="trash" size={12} color="#DC2626" />
-                      <Text style={[styles.docActionMiniText, { color: '#DC2626' }]}>Hapus</Text>
-                    </TouchableOpacity>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.docAttachedTitle}>Foto Bukti #{index + 1}</Text>
+                        <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+                      </View>
+                      <Text style={styles.docAttachedSub}>Foto bukti fisik siap dikirim ke petugas</Text>
 
-                    <TouchableOpacity
-                      style={[styles.docActionMiniBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
-                      activeOpacity={0.8}
-                      onPress={() => setPreviewModalUri(photoUri)}
-                    >
-                      <Ionicons name="eye" size={12} color={Colors.textSecondary} />
-                      <Text style={[styles.docActionMiniText, { color: Colors.textSecondary }]}>Lihat</Text>
-                    </TouchableOpacity>
+                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={styles.docActionMiniBtn}
+                          activeOpacity={0.8}
+                          onPress={() => handlePickImage(undefined, index)}
+                        >
+                          <Ionicons name="camera-reverse" size={12} color={Colors.primaryDark} />
+                          <Text style={styles.docActionMiniText}>Ganti</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.docActionMiniBtn, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}
+                          activeOpacity={0.8}
+                          onPress={() => handleRemovePhoto(index)}
+                        >
+                          <Ionicons name="trash" size={12} color="#DC2626" />
+                          <Text style={[styles.docActionMiniText, { color: '#DC2626' }]}>Hapus</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.docActionMiniBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                          activeOpacity={0.8}
+                          onPress={() => setPreviewModalUri(item.uri)}
+                        >
+                          <Ionicons name="eye" size={12} color={Colors.textSecondary} />
+                          <Text style={[styles.docActionMiniText, { color: Colors.textSecondary }]}>Lihat</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 </View>
-              </View>
+              ))}
             </View>
-          ) : (
+          )}
+
+          {/* OPSI TAMBAH FOTO JIKA KURANG DARI 3 */}
+          {photos.length < 3 && (
             <View style={styles.uploadOptionsRow}>
               <TouchableOpacity
                 style={styles.uploadOptionCard}
@@ -251,7 +306,9 @@ export default function CreateComplaintScreen() {
                   <Ionicons name="camera" size={22} color="#16A34A" />
                 </View>
                 <Text style={styles.uploadOptionTitle}>Ambil Kamera</Text>
-                <Text style={styles.uploadOptionSub}>Foto fisik langsung</Text>
+                <Text style={styles.uploadOptionSub}>
+                  {photos.length > 0 ? `Tambah Foto ke-${photos.length + 1}` : 'Foto fisik langsung'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -263,7 +320,9 @@ export default function CreateComplaintScreen() {
                   <Ionicons name="folder-open" size={22} color="#D97706" />
                 </View>
                 <Text style={styles.uploadOptionTitle}>File / Galeri HP</Text>
-                <Text style={styles.uploadOptionSub}>Cari file di memori</Text>
+                <Text style={styles.uploadOptionSub}>
+                  {photos.length > 0 ? `Pilih Foto ke-${photos.length + 1}` : 'Cari file di memori'}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -294,18 +353,42 @@ export default function CreateComplaintScreen() {
         <View style={styles.section}>
           <Text style={styles.label}>4. Lokasi Kejadian</Text>
           <View style={styles.gpsRow}>
-            <Ionicons name="navigate-circle" size={22} color={Colors.secondary} />
+            <Ionicons name="navigate-circle" size={24} color={Colors.secondary} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.gpsTitle}>Sematkan Koordinat GPS Otomatis</Text>
-              <Text style={styles.gpsSub}>Presisi lokasi akurat membantu petugas menemukan titik</Text>
+              <Text style={styles.gpsTitle}>Sematkan Titik Peta & GPS Otomatis</Text>
+              <Text style={styles.gpsSub}>Tentukan titik koordinat akurat pada peta satelit / jalan</Text>
             </View>
             <Switch
               value={useGps}
-              onValueChange={setUseGps}
+              onValueChange={handleToggleGps}
               trackColor={{ false: '#E2E8F0', true: Colors.secondaryLight }}
               thumbColor={useGps ? Colors.secondary : '#94A3B8'}
             />
           </View>
+
+          {useGps && (
+            <TouchableOpacity
+              style={styles.mapTriggerCard}
+              activeOpacity={0.85}
+              onPress={() => setShowMapModal(true)}
+            >
+              <View style={styles.mapTriggerIcon}>
+                <Ionicons name="map" size={20} color={Colors.urgent} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.mapTriggerTitle}>Titik Koordinat Peta</Text>
+                <Text style={styles.mapTriggerCoord}>
+                  GPS: {coords.latitude.toFixed(6)}, {coords.longitude.toFixed(6)}
+                </Text>
+                <Text style={styles.mapTriggerHint}>Ketuk untuk geser titik atau ubah mode satelit</Text>
+              </View>
+              <View style={styles.mapTriggerBadge}>
+                <Ionicons name="create-outline" size={14} color={Colors.urgent} />
+                <Text style={styles.mapTriggerBadgeText}>Atur Peta</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TextInput
             style={[styles.input, { marginTop: 10 }]}
             placeholder="Patokan alamat lengkap (Nama jalan / RT / RW)"
@@ -376,6 +459,21 @@ export default function CreateComplaintScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+
+      {/* MODAL PETA INTERAKTIF GPS & SATELIT */}
+      <LocationPickerModal
+        visible={showMapModal}
+        onClose={() => setShowMapModal(false)}
+        initialLatitude={coords.latitude}
+        initialLongitude={coords.longitude}
+        initialAddress={location}
+        onSelectLocation={(data) => {
+          setCoords({ latitude: data.latitude, longitude: data.longitude });
+          if (data.address) {
+            setLocation(data.address);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -546,6 +644,19 @@ const styles = StyleSheet.create({
     minHeight: 90,
     lineHeight: 20,
   },
+  counterBadge: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Spacing.radiusFull,
+  },
+  counterBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.urgent,
+  },
   gpsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -565,6 +676,57 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  mapTriggerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1.5,
+    borderColor: '#FED7AA',
+    borderRadius: Spacing.radiusLg,
+    padding: 12,
+    marginTop: 10,
+  },
+  mapTriggerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapTriggerTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: '#9A3412',
+  },
+  mapTriggerCoord: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: '#EA580C',
+    marginTop: 1,
+  },
+  mapTriggerHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 10.5,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  mapTriggerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  mapTriggerBadgeText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.urgent,
   },
   privacyCard: {
     flexDirection: 'row',

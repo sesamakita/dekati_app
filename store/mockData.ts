@@ -60,6 +60,9 @@ export interface Complaint {
   is_anonymous: boolean;
   status: 'submitted' | 'in_progress' | 'resolved';
   photo_url?: string;
+  photo_urls?: string[];
+  latitude?: number;
+  longitude?: number;
   resolution_proof?: string;
   created_at: string;
 }

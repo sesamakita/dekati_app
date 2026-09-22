@@ -685,14 +685,35 @@ class ApiService {
     location: string;
     is_anonymous: boolean;
     photo_url?: string;
+    photos?: Array<{ uri: string; base64?: string | null }> | string[];
+    latitude?: number;
+    longitude?: number;
   }): Promise<Complaint> {
     const now = new Date();
     const ticketNumber = `ADU-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    let cloudPhotoUrl = payload.photo_url;
-    if (cloudPhotoUrl && !cloudPhotoUrl.startsWith('http://') && !cloudPhotoUrl.startsWith('https://') && !cloudPhotoUrl.startsWith('data:')) {
-      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'complaints', (payload as any).base64);
+    const uploadedUrls: string[] = [];
+
+    if (Array.isArray(payload.photos) && payload.photos.length > 0) {
+      for (const item of payload.photos) {
+        if (typeof item === 'string') {
+          const u = await uploadImageToSupabase(item, 'complaints');
+          if (u) uploadedUrls.push(u);
+        } else if (item && typeof item === 'object' && item.uri) {
+          const u = await uploadImageToSupabase(item.uri, 'complaints', item.base64);
+          if (u) uploadedUrls.push(u);
+        }
+      }
+    } else if (payload.photo_url) {
+      let cloudPhotoUrl = payload.photo_url;
+      if (!cloudPhotoUrl.startsWith('http://') && !cloudPhotoUrl.startsWith('https://') && !cloudPhotoUrl.startsWith('data:')) {
+        cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'complaints', (payload as any).base64);
+      }
+      if (cloudPhotoUrl) uploadedUrls.push(cloudPhotoUrl);
     }
+
+    const primaryPhotoUrl = uploadedUrls[0] || payload.photo_url || undefined;
+    const photoUrlToSave = uploadedUrls.length > 1 ? JSON.stringify(uploadedUrls) : (primaryPhotoUrl || null);
 
     const newComplaint: Complaint = {
       id: `cmp-${Date.now()}`,
@@ -704,7 +725,10 @@ class ApiService {
       reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : this.currentCitizen.nama_lengkap,
       is_anonymous: payload.is_anonymous,
       status: 'submitted',
-      photo_url: cloudPhotoUrl,
+      photo_url: primaryPhotoUrl,
+      photo_urls: uploadedUrls,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
       created_at: 'Baru saja'
     };
 
@@ -722,7 +746,7 @@ class ApiService {
           reporter_phone: '081234567890',
           is_anonymous: payload.is_anonymous,
           status: 'submitted',
-          photo_url: cloudPhotoUrl
+          photo_url: photoUrlToSave
         })
         .select('*')
         .single();
