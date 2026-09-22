@@ -10,6 +10,7 @@ import {
   Switch,
   Alert,
   Image,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,6 +43,7 @@ export default function CreateComplaintScreen() {
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [previewModalUri, setPreviewModalUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const openImagePicker = async (source: 'camera' | 'gallery') => {
@@ -180,33 +182,90 @@ export default function CreateComplaintScreen() {
         <View style={styles.section}>
           <Text style={styles.label}>2. Foto Bukti di Lapangan</Text>
           <Text style={styles.helper}>
-            Sertakan foto kondisi nyata fasilitas agar petugas dapat langsung menilai:
+            Sertakan foto kondisi nyata fasilitas agar petugas desa dapat langsung menilai:
           </Text>
 
           {photoUri ? (
-            <View style={styles.previewBox}>
-              <Image source={{ uri: photoUri }} style={styles.previewImage} />
-              <TouchableOpacity
-                style={styles.removePhotoBtn}
-                activeOpacity={0.8}
-                onPress={() => setPhotoUri(null)}
-              >
-                <Ionicons name="trash" size={14} color="#FFFFFF" />
-                <Text style={styles.removePhotoText}>Ganti Foto</Text>
-              </TouchableOpacity>
+            <View style={styles.docCardAttached}>
+              <View style={styles.docAttachedRow}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setPreviewModalUri(photoUri)}
+                  style={styles.docThumbnailWrapper}
+                >
+                  <Image source={{ uri: photoUri }} style={styles.docThumbnail} />
+                  <View style={styles.zoomBadge}>
+                    <Ionicons name="scan" size={11} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.docAttachedTitle}>Foto Bukti di Lapangan</Text>
+                    <Ionicons name="checkmark-circle" size={15} color="#16A34A" />
+                  </View>
+                  <Text style={styles.docAttachedSub}>Foto bukti fisik siap dikirim ke petugas desa</Text>
+
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={styles.docActionMiniBtn}
+                      activeOpacity={0.8}
+                      onPress={() => handlePickImage()}
+                    >
+                      <Ionicons name="camera-reverse" size={12} color={Colors.primaryDark} />
+                      <Text style={styles.docActionMiniText}>Ganti</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.docActionMiniBtn, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setPhotoUri(null);
+                        setPhotoBase64(null);
+                      }}
+                    >
+                      <Ionicons name="trash" size={12} color="#DC2626" />
+                      <Text style={[styles.docActionMiniText, { color: '#DC2626' }]}>Hapus</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.docActionMiniBtn, { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }]}
+                      activeOpacity={0.8}
+                      onPress={() => setPreviewModalUri(photoUri)}
+                    >
+                      <Ionicons name="eye" size={12} color={Colors.textSecondary} />
+                      <Text style={[styles.docActionMiniText, { color: Colors.textSecondary }]}>Lihat</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
             </View>
           ) : (
-            <TouchableOpacity
-              style={styles.uploadBox}
-              activeOpacity={0.8}
-              onPress={() => handlePickImage()}
-            >
-              <View style={styles.uploadIconCircle}>
-                <Ionicons name="camera" size={24} color={Colors.primary} />
-              </View>
-              <Text style={styles.uploadTitle}>Ambil Foto atau Pilih dari Galeri</Text>
-              <Text style={styles.uploadSub}>Format JPG, PNG (Maksimal 10 MB)</Text>
-            </TouchableOpacity>
+            <View style={styles.uploadOptionsRow}>
+              <TouchableOpacity
+                style={styles.uploadOptionCard}
+                activeOpacity={0.82}
+                onPress={() => handlePickImage('camera')}
+              >
+                <View style={[styles.uploadOptionIconBox, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="camera" size={22} color="#16A34A" />
+                </View>
+                <Text style={styles.uploadOptionTitle}>Ambil Kamera</Text>
+                <Text style={styles.uploadOptionSub}>Foto fisik langsung</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.uploadOptionCard}
+                activeOpacity={0.82}
+                onPress={() => handlePickImage('gallery')}
+              >
+                <View style={[styles.uploadOptionIconBox, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="folder-open" size={22} color="#D97706" />
+                </View>
+                <Text style={styles.uploadOptionTitle}>File / Galeri HP</Text>
+                <Text style={styles.uploadOptionSub}>Cari file di memori</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
 
@@ -287,6 +346,36 @@ export default function CreateComplaintScreen() {
           <Ionicons name="send" size={16} color="#FFFFFF" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
       </ScrollView>
+
+      {/* MODAL PRATINJAU FOTO LAYAR PENUH */}
+      <Modal
+        visible={!!previewModalUri}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewModalUri(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={() => setPreviewModalUri(null)}
+          >
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          {previewModalUri && (
+            <Image
+              source={{ uri: previewModalUri }}
+              style={styles.modalFullImage}
+              resizeMode="contain"
+            />
+          )}
+          <TouchableOpacity
+            style={styles.modalBottomCloseBtn}
+            onPress={() => setPreviewModalUri(null)}
+          >
+            <Text style={styles.modalBottomCloseText}>Tutup Tampilan</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -347,63 +436,99 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Colors.urgent,
   },
-  uploadBox: {
+  uploadOptionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  uploadOptionCard: {
+    flex: 1,
     backgroundColor: Colors.surface,
     borderWidth: 1.5,
+    borderColor: '#CBD5E1',
     borderStyle: 'dashed',
-    borderColor: Colors.bento.hero.border,
-    borderRadius: Spacing.radiusXl,
-    padding: 24,
+    borderRadius: Spacing.radiusLg,
+    paddingVertical: 18,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  uploadIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.primarySubtle,
+  uploadOptionIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  uploadTitle: {
+  uploadOptionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  uploadOptionSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 10.5,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  docCardAttached: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: Spacing.radiusLg,
+    padding: 12,
+  },
+  docAttachedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  docThumbnailWrapper: {
+    position: 'relative',
+  },
+  docThumbnail: {
+    width: 64,
+    height: 64,
+    borderRadius: Spacing.radiusMd,
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  zoomBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    borderRadius: 4,
+    padding: 3,
+  },
+  docAttachedTitle: {
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: Colors.textPrimary,
   },
-  uploadSub: {
+  docAttachedSub: {
     fontFamily: Fonts.regular,
-    fontSize: 11.5,
-    color: Colors.textMuted,
-    marginTop: 3,
+    fontSize: 11,
+    color: '#16A34A',
+    marginTop: 2,
   },
-  previewBox: {
-    borderRadius: Spacing.radiusXl,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    position: 'relative',
-  },
-  previewImage: {
-    width: '100%',
-    height: 190,
-  },
-  removePhotoBtn: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+  docActionMiniBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: Spacing.radiusSm,
+    backgroundColor: Colors.bento.hero.bg,
+    borderWidth: 1,
+    borderColor: Colors.bento.hero.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     gap: 4,
   },
-  removePhotoText: {
-    color: '#FFFFFF',
+  docActionMiniText: {
     fontFamily: Fonts.bold,
     fontSize: 11,
+    color: Colors.primaryDark,
   },
   input: {
     backgroundColor: Colors.surface,
@@ -479,5 +604,41 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: '#FFFFFF',
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalFullImage: {
+    width: '100%',
+    height: '75%',
+    borderRadius: 12,
+  },
+  modalBottomCloseBtn: {
+    marginTop: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: Spacing.radiusFull,
+  },
+  modalBottomCloseText: {
+    fontFamily: Fonts.bold,
+    color: '#FFFFFF',
+    fontSize: 13,
   },
 });
