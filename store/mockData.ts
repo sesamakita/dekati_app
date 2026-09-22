@@ -13,6 +13,11 @@ export interface Citizen {
   rw: string;
   dusun: string;
   is_verified: boolean;
+  verified_by?: string;
+  foto_kk_path?: string;
+  verification_status?: 'verified' | 'pending' | 'needs_revision';
+  rejection_reason?: string;
+  document_type?: string;
 }
 
 export interface LetterType {

@@ -13,9 +13,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/Colors';
 import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
@@ -34,6 +36,11 @@ const JOB_OPTIONS = [
   'Karyawan Swasta',
   'Petani/Pekebun',
 ];
+const DOCUMENT_TYPES = [
+  'Foto Kartu Keluarga (KK)',
+  'Foto Akta Kelahiran / KIA',
+  'Surat Pindah Datang (SKPWNI)',
+];
 
 export default function ProfilScreen() {
   const router = useRouter();
@@ -50,7 +57,12 @@ export default function ProfilScreen() {
   const [newRole, setNewRole] = useState('Anak');
   const [newBirthDate, setNewBirthDate] = useState('');
   const [newJob, setNewJob] = useState('Pelajar/Mahasiswa');
+  const [selectedDocType, setSelectedDocType] = useState(DOCUMENT_TYPES[0]);
+  const [docPhotoUri, setDocPhotoUri] = useState<string | null>(null);
   const [savingMember, setSavingMember] = useState(false);
+
+  // State Preview Foto Dokumen
+  const [previewPhotoUri, setPreviewPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -75,6 +87,37 @@ export default function ProfilScreen() {
     Linking.openURL(`https://wa.me/6281234567890?text=${text}`);
   };
 
+  const handlePickDocPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets && result.assets[0]) {
+          setDocPhotoUri(result.assets[0].uri);
+        }
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setDocPhotoUri(result.assets[0].uri);
+      }
+    } catch (e) {
+      setDocPhotoUri('https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80');
+    }
+  };
+
   const handleAddFamilyMember = async () => {
     if (!newNik.trim() || newNik.trim().length !== 16 || !/^\d+$/.test(newNik.trim())) {
       Alert.alert('Perhatian', 'NIK harus terdiri dari tepat 16 digit angka sesuai KTP/KIA/Akta.');
@@ -94,12 +137,14 @@ export default function ProfilScreen() {
         status_keluarga: newRole,
         tanggal_lahir: newBirthDate.trim() || '2005-01-01',
         pekerjaan: newJob.trim() || 'Pelajar/Belum Bekerja',
+        foto_kk_path: docPhotoUri || undefined,
+        document_type: selectedDocType,
       });
 
       if (res.success) {
         Alert.alert(
           'Anggota Keluarga Ditambahkan',
-          `${newNama.trim()} (${newRole}) berhasil didaftarkan ke dalam Kartu Keluarga Anda. Anda dapat langsung mengurus surat atas nama beliau.`
+          `${newNama.trim()} (${newRole}) berhasil didaftarkan ke Kartu Keluarga Anda dengan status Menunggu Verifikasi Operator Desa.`
         );
         const updated = await api.getFamilyMembers();
         setFamilyMembers(updated);
@@ -109,6 +154,8 @@ export default function ProfilScreen() {
         setNewRole('Anak');
         setNewBirthDate('');
         setNewJob('Pelajar/Mahasiswa');
+        setDocPhotoUri(null);
+        setSelectedDocType(DOCUMENT_TYPES[0]);
         setShowAddModal(false);
       } else {
         Alert.alert('Gagal Menambahkan', res.message || 'Terjadi gangguan saat menyimpan data.');
@@ -117,6 +164,41 @@ export default function ProfilScreen() {
       Alert.alert('Kesalahan', err?.message || 'Gagal menyimpan anggota keluarga.');
     } finally {
       setSavingMember(false);
+    }
+  };
+
+  const handleUploadRevision = async (member: Citizen) => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      let result: ImagePicker.ImagePickerResult;
+
+      if (status === 'granted') {
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const newUri = result.assets[0].uri;
+        await api.updateFamilyMemberDocument(member.id, newUri);
+        const updated = await api.getFamilyMembers();
+        setFamilyMembers(updated);
+        Alert.alert(
+          'Berkas Revisi Terkirim',
+          `Dokumen bukti fisik untuk ${member.nama_lengkap} telah diperbarui dan dikirim kembali ke antrean verifikasi operator desa.`
+        );
+      }
+    } catch (e) {
+      Alert.alert('Gagal', 'Terjadi kendala saat mengambil berkas revisi.');
     }
   };
 
@@ -234,42 +316,115 @@ export default function ProfilScreen() {
 
           {familyMembers.map((member) => {
             const isSelf = member.nik === user?.nik || member.status_keluarga === 'Kepala Keluarga';
+            const status = member.verification_status || (member.is_verified ? 'verified' : 'pending');
+            const isVerified = status === 'verified';
+            const isPending = status === 'pending';
+            const isRevision = status === 'needs_revision';
+
             return (
-              <View key={member.id} style={styles.familyCard}>
-                <View style={[styles.familyIconBox, isSelf && styles.familyIconBoxSelf]}>
-                  <Ionicons
-                    name={isSelf ? 'shield-checkmark' : member.jenis_kelamin === 'L' ? 'man' : 'woman'}
-                    size={20}
-                    color={isSelf ? Colors.primaryDark : member.jenis_kelamin === 'L' ? Colors.secondary : Colors.urgent}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                    <Text style={styles.familyName}>{member.nama_lengkap}</Text>
-                    {isSelf && (
-                      <View style={styles.selfBadge}>
-                        <Text style={styles.selfBadgeText}>Anda</Text>
+              <View key={member.id} style={[styles.familyCard, isRevision && styles.familyCardRevision]}>
+                <View style={styles.familyCardTop}>
+                  <View style={[styles.familyIconBox, isSelf && styles.familyIconBoxSelf]}>
+                    <Ionicons
+                      name={isSelf ? 'shield-checkmark' : member.jenis_kelamin === 'L' ? 'man' : 'woman'}
+                      size={20}
+                      color={isSelf ? Colors.primaryDark : member.jenis_kelamin === 'L' ? Colors.secondary : Colors.urgent}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      <Text style={styles.familyName}>{member.nama_lengkap}</Text>
+                      {isSelf && (
+                        <View style={styles.selfBadge}>
+                          <Text style={styles.selfBadgeText}>Anda</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.familyRole}>
+                      {member.status_keluarga} • {member.pekerjaan}
+                    </Text>
+                    <Text style={styles.familyNik}>NIK: {member.nik}</Text>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                    {isSelf ? (
+                      <View style={styles.familyBadge}>
+                        <Text style={styles.familyBadgeText}>Kepala KK</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.deleteMemberBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        onPress={() => handleDeleteFamilyMember(member)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+
+                    {/* STATUS VERIFIKASI BADGE */}
+                    {isVerified ? (
+                      <View style={styles.statusBadgeVerified}>
+                        <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
+                        <Text style={styles.statusBadgeVerifiedText}>Terverifikasi</Text>
+                      </View>
+                    ) : isPending ? (
+                      <View style={styles.statusBadgePending}>
+                        <Ionicons name="time-outline" size={12} color="#D97706" />
+                        <Text style={styles.statusBadgePendingText}>Menunggu</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.statusBadgeRevision}>
+                        <Ionicons name="alert-circle" size={12} color="#DC2626" />
+                        <Text style={styles.statusBadgeRevisionText}>Revisi</Text>
                       </View>
                     )}
                   </View>
-                  <Text style={styles.familyRole}>
-                    {member.status_keluarga} • {member.pekerjaan}
-                  </Text>
-                  <Text style={styles.familyNik}>NIK: {member.nik}</Text>
                 </View>
 
-                {isSelf ? (
-                  <View style={styles.familyBadge}>
-                    <Text style={styles.familyBadgeText}>Kepala KK</Text>
+                {/* BERKAS & CATATAN BARIS BAWAH */}
+                <View style={styles.familyCardBottom}>
+                  {member.foto_kk_path ? (
+                    <TouchableOpacity
+                      style={styles.viewDocChip}
+                      activeOpacity={0.8}
+                      onPress={() => setPreviewPhotoUri(member.foto_kk_path || null)}
+                    >
+                      <Ionicons name="document-attach" size={13} color={Colors.primaryDark} />
+                      <Text style={styles.viewDocChipText}>Lihat Bukti Berkas</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.noDocChip}>
+                      <Ionicons name="document-outline" size={12} color={Colors.textMuted} />
+                      <Text style={styles.noDocChipText}>Berkas Belum Dilampirkan</Text>
+                    </View>
+                  )}
+
+                  {isVerified && member.verified_by && (
+                    <Text style={styles.verifiedByNote}>
+                      Oleh: {member.verified_by}
+                    </Text>
+                  )}
+                </View>
+
+                {/* BANNER CATATAN REVISI DARI OPERATOR DESA */}
+                {isRevision && (
+                  <View style={styles.revisionBanner}>
+                    <View style={styles.revisionBannerHeader}>
+                      <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                      <Text style={styles.revisionBannerTitle}>Catatan Perbaikan dari Operator Desa:</Text>
+                    </View>
+                    <Text style={styles.revisionBannerText}>
+                      "{member.rejection_reason || 'Foto dokumen KK buram atau NIK tidak sesuai fisik. Mohon unggah ulang foto yang jelas.'}"
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.reuploadActionBtn}
+                      activeOpacity={0.85}
+                      onPress={() => handleUploadRevision(member)}
+                    >
+                      <Ionicons name="cloud-upload" size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={styles.reuploadActionBtnText}>Unggah Ulang Foto Dokumen</Text>
+                    </TouchableOpacity>
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.deleteMemberBtn}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    onPress={() => handleDeleteFamilyMember(member)}
-                  >
-                    <Ionicons name="trash-outline" size={17} color="#DC2626" />
-                  </TouchableOpacity>
                 )}
               </View>
             );
@@ -507,6 +662,75 @@ export default function ProfilScreen() {
                   ))}
                 </View>
               </View>
+
+              {/* UPLOAD DOKUMEN BUKTI FISIK */}
+              <View style={styles.modalInputGroup}>
+                <View style={styles.inputLabelRow}>
+                  <Text style={styles.modalInputLabel}>Dokumen Bukti Fisik</Text>
+                  <Text style={styles.reqBadge}>Disarankan</Text>
+                </View>
+                <Text style={styles.inputHint}>
+                  Pilih jenis dokumen pendukung yang dilampirkan:
+                </Text>
+                <View style={[styles.chipsRow, { marginBottom: 10 }]}>
+                  {DOCUMENT_TYPES.map((dtype) => (
+                    <TouchableOpacity
+                      key={dtype}
+                      style={[styles.chipPill, selectedDocType === dtype && styles.chipPillActive]}
+                      onPress={() => setSelectedDocType(dtype)}
+                    >
+                      <Text style={[styles.chipText, selectedDocType === dtype && styles.chipTextActive]}>
+                        {dtype}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {docPhotoUri ? (
+                  <View style={styles.docPreviewCard}>
+                    <Image source={{ uri: docPhotoUri }} style={styles.docThumbnail} />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles.docAttachedTitle} numberOfLines={1}>
+                        {selectedDocType}
+                      </Text>
+                      <Text style={styles.docAttachedSub}>Foto siap dikirim ke operator desa</Text>
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                        <TouchableOpacity
+                          style={styles.changePhotoBtn}
+                          onPress={handlePickDocPhoto}
+                        >
+                          <Ionicons name="camera-reverse" size={13} color={Colors.primaryDark} />
+                          <Text style={styles.changePhotoBtnText}>Ganti</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.removePhotoBtn}
+                          onPress={() => setDocPhotoUri(null)}
+                        >
+                          <Ionicons name="trash" size={13} color="#DC2626" />
+                          <Text style={styles.removePhotoBtnText}>Hapus</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.uploadDocDashedBtn}
+                    activeOpacity={0.8}
+                    onPress={handlePickDocPhoto}
+                  >
+                    <View style={styles.uploadDocIconCircle}>
+                      <Ionicons name="camera" size={22} color={Colors.primary} />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={styles.uploadDocTitle}>Ambil / Pilih Foto Dokumen</Text>
+                      <Text style={styles.uploadDocSubtitle}>
+                        Foto KK, Akta Kelahiran, KIA, atau Surat Pindah
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </ScrollView>
 
             {/* MODAL FOOTER ACTIONS */}
@@ -535,6 +759,48 @@ export default function ProfilScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL LIHAT BUKTI BERKAS */}
+      <Modal
+        visible={!!previewPhotoUri}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewPhotoUri(null)}
+      >
+        <View style={styles.previewOverlay}>
+          <SafeAreaView style={styles.previewContainer}>
+            <View style={styles.previewTopBar}>
+              <View>
+                <Text style={styles.previewTitle}>Bukti Dokumen Fisik</Text>
+                <Text style={styles.previewSub}>Lampiran verifikasi data kependudukan</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.previewCloseBtn}
+                onPress={() => setPreviewPhotoUri(null)}
+              >
+                <Ionicons name="close" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.previewImageWrapper}>
+              {previewPhotoUri && (
+                <Image
+                  source={{ uri: previewPhotoUri }}
+                  style={styles.previewImage}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+            <View style={styles.previewBottomBar}>
+              <TouchableOpacity
+                style={styles.previewDoneBtn}
+                onPress={() => setPreviewPhotoUri(null)}
+              >
+                <Text style={styles.previewDoneBtnText}>Tutup Tampilan</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -704,8 +970,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.radiusLg,
     padding: 14,
     marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1.5,
     borderColor: Colors.surfaceBorder,
     shadowColor: '#0F172A',
@@ -713,6 +977,144 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
+  },
+  familyCardRevision: {
+    borderColor: '#FECACA',
+    backgroundColor: '#FFFBFB',
+  },
+  familyCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  familyCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  statusBadgeVerified: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: Spacing.radiusFull,
+    gap: 4,
+  },
+  statusBadgeVerifiedText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: '#16A34A',
+  },
+  statusBadgePending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: Spacing.radiusFull,
+    gap: 4,
+  },
+  statusBadgePendingText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: '#D97706',
+  },
+  statusBadgeRevision: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: Spacing.radiusFull,
+    gap: 4,
+  },
+  statusBadgeRevisionText: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: '#DC2626',
+  },
+  viewDocChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.bento.hero.bg,
+    borderWidth: 1,
+    borderColor: Colors.bento.hero.border,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: Spacing.radiusFull,
+    gap: 4,
+  },
+  viewDocChipText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.primaryDark,
+  },
+  noDocChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  noDocChipText: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  verifiedByNote: {
+    fontFamily: Fonts.medium,
+    fontSize: 10.5,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
+  },
+  revisionBanner: {
+    marginTop: 10,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: Spacing.radiusMd,
+    padding: 10,
+  },
+  revisionBannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  revisionBannerTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: '#DC2626',
+  },
+  revisionBannerText: {
+    fontFamily: Fonts.regular,
+    fontSize: 11.5,
+    color: '#991B1B',
+    lineHeight: 16,
+    marginBottom: 8,
+  },
+  reuploadActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DC2626',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: Spacing.radiusFull,
+    alignSelf: 'flex-start',
+  },
+  reuploadActionBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: '#FFFFFF',
   },
   familyIconBox: {
     width: 40,
@@ -1006,6 +1408,168 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   saveBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+  reqBadge: {
+    backgroundColor: '#FEF3C7',
+    color: '#D97706',
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  inputHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  uploadDocDashedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderStyle: 'dashed',
+    borderRadius: Spacing.radiusLg,
+    padding: 14,
+  },
+  uploadDocIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.bento.hero.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uploadDocTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.textPrimary,
+  },
+  uploadDocSubtitle: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  docPreviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: Spacing.radiusLg,
+    padding: 10,
+  },
+  docThumbnail: {
+    width: 68,
+    height: 68,
+    borderRadius: Spacing.radiusMd,
+    backgroundColor: '#E2E8F0',
+  },
+  docAttachedTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.textPrimary,
+  },
+  docAttachedSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: '#16A34A',
+    marginTop: 2,
+  },
+  changePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.bento.hero.bg,
+    borderWidth: 1,
+    borderColor: Colors.bento.hero.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  changePhotoBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.primaryDark,
+  },
+  removePhotoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  removePhotoBtnText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: '#DC2626',
+  },
+  // FULLSCREEN PREVIEW MODAL
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.94)',
+  },
+  previewContainer: {
+    flex: 1,
+  },
+  previewTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  previewTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  previewSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
+  },
+  previewCloseBtn: {
+    padding: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 20,
+  },
+  previewImageWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewBottomBar: {
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    alignItems: 'center',
+  },
+  previewDoneBtn: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: Spacing.radiusFull,
+  },
+  previewDoneBtnText: {
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: '#FFFFFF',

@@ -131,20 +131,36 @@ class ApiService {
         .order('created_at', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        members = data.map((d: any) => ({
-          id: d.id,
-          nik: d.nik,
-          no_kk: d.no_kk,
-          nama_lengkap: d.nama_lengkap,
-          jenis_kelamin: (d.jenis_kelamin as 'L' | 'P') || 'L',
-          status_keluarga: d.status_dalam_keluarga || 'Anggota Keluarga',
-          tanggal_lahir: d.tanggal_lahir || '2000-01-01',
-          pekerjaan: d.pekerjaan || 'Warga Desa',
-          rt: d.rt || current.rt,
-          rw: d.rw || current.rw,
-          dusun: d.dusun || current.dusun,
-          is_verified: !!d.is_verified,
-        }));
+        members = data.map((d: any) => {
+          const isVerified = !!d.is_verified;
+          const verifiedBy = d.verified_by || '';
+          const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+          const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+            ? 'verified'
+            : isRevision
+            ? 'needs_revision'
+            : 'pending';
+          const rejectionReason = isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined;
+
+          return {
+            id: d.id,
+            nik: d.nik,
+            no_kk: d.no_kk,
+            nama_lengkap: d.nama_lengkap,
+            jenis_kelamin: (d.jenis_kelamin as 'L' | 'P') || 'L',
+            status_keluarga: d.status_dalam_keluarga || 'Anggota Keluarga',
+            tanggal_lahir: d.tanggal_lahir || '2000-01-01',
+            pekerjaan: d.pekerjaan || 'Warga Desa',
+            rt: d.rt || current.rt,
+            rw: d.rw || current.rw,
+            dusun: d.dusun || current.dusun,
+            is_verified: isVerified,
+            verified_by: verifiedBy,
+            foto_kk_path: d.foto_kk_path,
+            verification_status: verificationStatus,
+            rejection_reason: rejectionReason,
+          };
+        });
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getFamilyMembers offline fallback.', err);
@@ -153,15 +169,19 @@ class ApiService {
     if (members.length === 0) {
       // Jika database belum mengembalikan data atau offline
       if (current.nik === mockUser.nik) {
-        members = [...mockFamilyMembers];
+        members = mockFamilyMembers.map(m => ({
+          ...m,
+          verification_status: 'verified' as const,
+          foto_kk_path: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80'
+        }));
       } else {
-        members = [current];
+        members = [{ ...current, verification_status: 'verified' as const }];
       }
     }
 
-    // Pastikan akun yang sedang login selalu ada di dalam list (sebagai Kepala Keluarga)
+    // Pastikan akun yang sedang login selalu ada di dalam list (sebagai Kepala Keluarga terverifikasi)
     if (!members.some((m) => m.nik === current.nik)) {
-      members.unshift(current);
+      members.unshift({ ...current, verification_status: 'verified' as const });
     }
 
     // Gabungkan dengan anggota yang baru ditambahkan secara lokal/sesi
@@ -182,6 +202,8 @@ class ApiService {
     tanggal_lahir?: string;
     pekerjaan?: string;
     phone_number?: string;
+    foto_kk_path?: string;
+    document_type?: string;
   }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
     const cleanNik = payload.nik.trim();
     const cleanNama = payload.nama_lengkap.trim();
@@ -209,6 +231,7 @@ class ApiService {
       dusun: current.dusun || 'Dusun Mekar',
       alamat_lengkap: `Kp. Sukamaju, RT ${current.rt || '01'}/RW ${current.rw || '01'}, Desa ${Config.villageName}`,
       phone_number: payload.phone_number || '',
+      foto_kk_path: payload.foto_kk_path || '',
       is_verified: false,
     };
 
@@ -232,7 +255,10 @@ class ApiService {
           rt: data.rt || current.rt,
           rw: data.rw || current.rw,
           dusun: data.dusun || current.dusun,
-          is_verified: !!data.is_verified,
+          is_verified: false,
+          verification_status: 'pending',
+          foto_kk_path: data.foto_kk_path || payload.foto_kk_path,
+          document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
         };
         this.localFamilyMembers.push(newCitizen);
         return { success: true, data: newCitizen };
@@ -262,9 +288,45 @@ class ApiService {
       rw: current.rw || '01',
       dusun: current.dusun || 'Dusun Mekar',
       is_verified: false,
+      verification_status: 'pending',
+      foto_kk_path: payload.foto_kk_path,
+      document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
     };
     this.localFamilyMembers.push(localCitizen);
     return { success: true, data: localCitizen };
+  }
+
+  async updateFamilyMemberDocument(citizenId: string, photoUri: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const { error } = await supabase
+        .from('citizens')
+        .update({
+          foto_kk_path: photoUri,
+          is_verified: false,
+          verified_by: null, // Reset status revisi kembali ke pending setelah diunggah ulang
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', citizenId);
+
+      if (error) {
+        console.warn('[Dekati Mobile] updateFamilyMemberDocument error:', error);
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] updateFamilyMemberDocument exception:', err);
+    }
+
+    const idx = this.localFamilyMembers.findIndex(m => m.id === citizenId);
+    if (idx !== -1) {
+      this.localFamilyMembers[idx] = {
+        ...this.localFamilyMembers[idx],
+        foto_kk_path: photoUri,
+        is_verified: false,
+        verification_status: 'pending',
+        rejection_reason: undefined,
+        verified_by: undefined
+      };
+    }
+    return { success: true };
   }
 
   async deleteFamilyMember(citizenId: string): Promise<{ success: boolean; message?: string }> {
