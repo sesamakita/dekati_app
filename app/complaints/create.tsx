@@ -352,45 +352,73 @@ export default function CreateComplaintScreen() {
         {/* LOKASI KEJADIAN */}
         <View style={styles.section}>
           <Text style={styles.label}>4. Lokasi Kejadian</Text>
-          <View style={styles.gpsRow}>
-            <Ionicons name="navigate-circle" size={24} color={Colors.secondary} />
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.gpsTitle}>Sematkan Titik Peta & GPS Otomatis</Text>
-              <Text style={styles.gpsSub}>Tentukan titik koordinat akurat pada peta satelit / jalan</Text>
+          {/* 1 CARD TUNGGAL UNTUK PETA & GPS */}
+          <View style={styles.mapUnifiedCard}>
+            {/* Header Bagian Atas Card: Toggle GPS */}
+            <View style={styles.mapCardHeader}>
+              <View style={styles.mapCardIconBox}>
+                <Ionicons name="navigate-circle" size={26} color={Colors.secondary} />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12, marginRight: 8 }}>
+                <Text style={styles.mapCardTitle}>Sematkan Titik Peta & GPS</Text>
+                <Text style={styles.mapCardSub}>Tentukan titik koordinat presisi peta satelit & jalan</Text>
+              </View>
+              <Switch
+                value={useGps}
+                onValueChange={handleToggleGps}
+                trackColor={{ false: '#E2E8F0', true: Colors.secondaryLight }}
+                thumbColor={useGps ? Colors.secondary : '#94A3B8'}
+              />
             </View>
-            <Switch
-              value={useGps}
-              onValueChange={handleToggleGps}
-              trackColor={{ false: '#E2E8F0', true: Colors.secondaryLight }}
-              thumbColor={useGps ? Colors.secondary : '#94A3B8'}
-            />
+
+            {/* Konten Terbuka di dalam Card yang Sama Saat GPS Aktif */}
+            {useGps && (
+              <View style={styles.mapCardBody}>
+                <View style={styles.mapCardDivider} />
+
+                {/* Info Koordinat & Status */}
+                <View style={styles.coordInfoBox}>
+                  <View style={styles.coordBadgeRow}>
+                    <View style={styles.coordPill}>
+                      <Ionicons name="pin" size={13} color="#DC2626" />
+                      <Text style={styles.coordPillText}>
+                        {coords.latitude.toFixed(6)}, {coords.longitude.toFixed(6)}
+                      </Text>
+                    </View>
+                    <View style={styles.accuracyBadge}>
+                      <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
+                      <Text style={styles.accuracyBadgeText}>Titik Terkunci</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.coordDescText}>
+                    Ketuk tombol di bawah untuk menggeser pin lokasi atau melihat tampilan citra satelit desa secara detail.
+                  </Text>
+                </View>
+
+                {/* Tombol Aksi Buka Peta Satelit / Geser Titik */}
+                <TouchableOpacity
+                  style={styles.openMapActionBtn}
+                  activeOpacity={0.85}
+                  onPress={() => setShowMapModal(true)}
+                >
+                  <View style={styles.openMapBtnIconCircle}>
+                    <Ionicons name="map" size={18} color="#FFFFFF" />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.openMapActionTitle}>Atur Titik di Peta & Satelit</Text>
+                    <Text style={styles.openMapActionSub}>Geser node pin atau deteksi posisi GPS</Text>
+                  </View>
+                  <View style={styles.openMapChevron}>
+                    <Ionicons name="chevron-forward" size={18} color={Colors.urgent} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
-          {useGps && (
-            <TouchableOpacity
-              style={styles.mapTriggerCard}
-              activeOpacity={0.85}
-              onPress={() => setShowMapModal(true)}
-            >
-              <View style={styles.mapTriggerIcon}>
-                <Ionicons name="map" size={20} color={Colors.urgent} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.mapTriggerTitle}>Titik Koordinat Peta</Text>
-                <Text style={styles.mapTriggerCoord}>
-                  GPS: {coords.latitude.toFixed(6)}, {coords.longitude.toFixed(6)}
-                </Text>
-                <Text style={styles.mapTriggerHint}>Ketuk untuk geser titik atau ubah mode satelit</Text>
-              </View>
-              <View style={styles.mapTriggerBadge}>
-                <Ionicons name="create-outline" size={14} color={Colors.urgent} />
-                <Text style={styles.mapTriggerBadgeText}>Atur Peta</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-
           <TextInput
-            style={[styles.input, { marginTop: 10 }]}
+            style={[styles.input, { marginTop: 4 }]}
             placeholder="Patokan alamat lengkap (Nama jalan / RT / RW)"
             placeholderTextColor={Colors.textMuted}
             value={location}
@@ -657,76 +685,136 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.urgent,
   },
-  gpsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  mapUnifiedCard: {
     backgroundColor: Colors.surface,
-    padding: Spacing.cardPadding,
-    borderRadius: Spacing.radiusLg,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  gpsTitle: {
-    fontFamily: Fonts.bold,
-    fontSize: 12.5,
-    color: Colors.textPrimary,
-  },
-  gpsSub: {
-    fontFamily: Fonts.regular,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  mapTriggerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
+    borderRadius: Spacing.radiusXl,
     borderWidth: 1.5,
     borderColor: '#FED7AA',
-    borderRadius: Spacing.radiusLg,
-    padding: 12,
-    marginTop: 10,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 1,
+    marginBottom: 8,
   },
-  mapTriggerIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFEDD5',
+  mapCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  mapCardIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mapTriggerTitle: {
+  mapCardTitle: {
     fontFamily: Fonts.bold,
-    fontSize: 12.5,
-    color: '#9A3412',
+    fontSize: 13.5,
+    color: Colors.textPrimary,
   },
-  mapTriggerCoord: {
-    fontFamily: Fonts.bold,
-    fontSize: 11,
-    color: '#EA580C',
-    marginTop: 1,
-  },
-  mapTriggerHint: {
+  mapCardSub: {
     fontFamily: Fonts.regular,
-    fontSize: 10.5,
+    fontSize: 11,
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  mapTriggerBadge: {
+  mapCardBody: {
+    marginTop: 4,
+  },
+  mapCardDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 12,
+  },
+  coordInfoBox: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: Spacing.radiusLg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginBottom: 10,
+  },
+  coordBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  coordPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: Spacing.radiusFull,
+    gap: 5,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: '#FDBA74',
+  },
+  coordPillText: {
+    fontFamily: Fonts.bold,
+    fontSize: 11.5,
+    color: '#C2410C',
+  },
+  accuracyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Spacing.radiusFull,
     gap: 4,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
   },
-  mapTriggerBadgeText: {
+  accuracyBadgeText: {
     fontFamily: Fonts.bold,
+    fontSize: 10.5,
+    color: '#15803D',
+  },
+  coordDescText: {
+    fontFamily: Fonts.regular,
     fontSize: 11,
-    color: Colors.urgent,
+    color: Colors.textSecondary,
+    lineHeight: 16,
+  },
+  openMapActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: Colors.urgent,
+    borderRadius: Spacing.radiusLg,
+    padding: 12,
+  },
+  openMapBtnIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.urgent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  openMapActionTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  openMapActionSub: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  openMapChevron: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF1F2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   privacyCard: {
     flexDirection: 'row',
