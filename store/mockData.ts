@@ -18,6 +18,8 @@ export interface Citizen {
   verification_status?: 'verified' | 'pending' | 'needs_revision';
   rejection_reason?: string;
   document_type?: string;
+  no_telepon?: string;
+  phone?: string;
 }
 
 export interface LetterType {
@@ -64,7 +66,13 @@ export interface Complaint {
   latitude?: number;
   longitude?: number;
   resolution_proof?: string;
+  resolution_notes?: string;
+  assigned_department?: string;
+  assigned_officer?: string;
+  citizen_id?: string;
+  citizen_nik?: string;
   created_at: string;
+  resolved_at?: string;
 }
 
 export interface Announcement {

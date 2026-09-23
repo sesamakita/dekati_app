@@ -1,5 +1,6 @@
 // services/api.ts
 import { Config } from '@/constants/Config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import { auth } from './auth';
 import { uploadImageToSupabase } from './storage';
@@ -649,7 +650,35 @@ class ApiService {
   // ==========================================
   // 3. Complaints (Aduan & Aspirasi)
   // ==========================================
+  private static readonly STORAGE_KEY_MY_COMPLAINTS = '@dekati:my_complaints';
+
+  async getMyComplaintTickets(): Promise<string[]> {
+    try {
+      const stored = await AsyncStorage.getItem(ApiService.STORAGE_KEY_MY_COMPLAINTS);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('[Dekati Mobile] Gagal membaca riwayat tiket aduan lokal:', e);
+    }
+    return [];
+  }
+
+  async saveMyComplaintTicket(ticketNumber: string): Promise<void> {
+    try {
+      const tickets = await this.getMyComplaintTickets();
+      if (!tickets.includes(ticketNumber)) {
+        tickets.unshift(ticketNumber);
+        await AsyncStorage.setItem(ApiService.STORAGE_KEY_MY_COMPLAINTS, JSON.stringify(tickets));
+      }
+    } catch (e) {
+      console.warn('[Dekati Mobile] Gagal menyimpan nomor tiket aduan lokal:', e);
+    }
+  }
+
   async getComplaints(): Promise<Complaint[]> {
+    const cloudComplaints: Complaint[] = [];
     try {
       const { data, error } = await supabase
         .from('complaints')
@@ -657,25 +686,61 @@ class ApiService {
         .order('created_at', { ascending: false });
 
       if (!error && data && data.length > 0) {
-        return data.map((d: any) => ({
-          id: d.id,
-          ticket_number: d.ticket_number,
-          category: d.category,
-          title: d.title,
-          description: d.description,
-          location: d.location_address || d.location || 'Desa Sukamaju',
-          reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
-          is_anonymous: !!d.is_anonymous,
-          status: d.status,
-          photo_url: d.photo_url,
-          resolution_proof: d.resolution_proof,
-          created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini'
-        }));
+        for (const d of data) {
+          // Parse multi-foto lapangan jika tersimpan dalam format JSON array atau koma
+          let parsedPhotos: string[] = [];
+          if (d.photo_url) {
+            const rawUrl = d.photo_url.trim();
+            if (rawUrl.startsWith('[') && rawUrl.endsWith(']')) {
+              try {
+                const arr = JSON.parse(rawUrl);
+                if (Array.isArray(arr)) parsedPhotos = arr;
+              } catch {
+                parsedPhotos = [rawUrl];
+              }
+            } else if (rawUrl.includes(',')) {
+              parsedPhotos = rawUrl.split(',').map((s: string) => s.trim()).filter(Boolean);
+            } else {
+              parsedPhotos = [rawUrl];
+            }
+          }
+
+          cloudComplaints.push({
+            id: d.id,
+            ticket_number: d.ticket_number,
+            category: d.category,
+            title: d.title,
+            description: d.description,
+            location: d.location_address || d.location || 'Desa Sukamaju',
+            reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
+            is_anonymous: !!d.is_anonymous,
+            status: d.status,
+            photo_url: parsedPhotos[0] || d.photo_url || undefined,
+            photo_urls: parsedPhotos.length > 0 ? parsedPhotos : undefined,
+            resolution_proof: d.resolution_proof,
+            resolution_notes: d.resolution_notes,
+            assigned_department: d.assigned_department,
+            assigned_officer: d.assigned_officer,
+            citizen_id: d.citizen_id,
+            citizen_nik: d.citizen_nik,
+            resolved_at: d.resolved_at,
+            created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini'
+          });
+        }
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getComplaints offline fallback.', err);
     }
-    return this.localComplaints;
+
+    // Gabungkan data cloud dengan local session complaints jika ada yang belum terunggah
+    const combined = [...cloudComplaints];
+    for (const local of this.localComplaints) {
+      if (!combined.some((c) => c.id === local.id || c.ticket_number === local.ticket_number)) {
+        combined.push(local);
+      }
+    }
+
+    return combined.length > 0 ? combined : this.localComplaints;
   }
 
   async submitComplaint(payload: {
@@ -689,6 +754,7 @@ class ApiService {
     latitude?: number;
     longitude?: number;
   }): Promise<Complaint> {
+    const user = await this.getCurrentUser();
     const now = new Date();
     const ticketNumber = `ADU-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -715,6 +781,9 @@ class ApiService {
     const primaryPhotoUrl = uploadedUrls[0] || payload.photo_url || undefined;
     const photoUrlToSave = uploadedUrls.length > 1 ? JSON.stringify(uploadedUrls) : (primaryPhotoUrl || null);
 
+    // Selalu simpan tiket aduan ke penyimpanan lokal perangkat agar muncul di "Laporan Saya" (bahkan jika anonim)
+    await this.saveMyComplaintTicket(ticketNumber);
+
     const newComplaint: Complaint = {
       id: `cmp-${Date.now()}`,
       ticket_number: ticketNumber,
@@ -722,37 +791,46 @@ class ApiService {
       title: payload.title,
       description: payload.description,
       location: payload.location,
-      reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : this.currentCitizen.nama_lengkap,
+      reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : user.nama_lengkap,
       is_anonymous: payload.is_anonymous,
       status: 'submitted',
       photo_url: primaryPhotoUrl,
       photo_urls: uploadedUrls,
+      citizen_id: user.id,
+      citizen_nik: user.nik,
       latitude: payload.latitude,
       longitude: payload.longitude,
       created_at: 'Baru saja'
     };
 
-    // Insert to Supabase
+    // Insert to Supabase dengan penanganan defensif jika kolom citizen_id belum dimigrasi di remote
     try {
-      const { data, error } = await supabase
-        .from('complaints')
-        .insert({
-          ticket_number: ticketNumber,
-          category: payload.category,
-          title: payload.title,
-          description: payload.description,
-          location_address: payload.location,
-          reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : this.currentCitizen.nama_lengkap,
-          reporter_phone: '081234567890',
-          is_anonymous: payload.is_anonymous,
-          status: 'submitted',
-          photo_url: photoUrlToSave
-        })
-        .select('*')
-        .single();
+      const insertData: any = {
+        ticket_number: ticketNumber,
+        category: payload.category,
+        title: payload.title,
+        description: payload.description,
+        location_address: payload.location,
+        reporter_name: payload.is_anonymous ? 'Warga Desa (Anonim)' : user.nama_lengkap,
+        reporter_phone: user.no_telepon || (user as any).phone || '081234567890',
+        is_anonymous: payload.is_anonymous,
+        status: 'submitted',
+        photo_url: photoUrlToSave,
+        citizen_id: user.id || null,
+        citizen_nik: user.nik || null,
+      };
 
-      if (!error && data) {
-        newComplaint.id = data.id;
+      let res = await supabase.from('complaints').insert(insertData).select('*').single();
+
+      // Fallback jika database Supabase belum memiliki kolom citizen_id / citizen_nik
+      if (res.error && res.error.message && (res.error.message.includes('citizen_id') || res.error.message.includes('citizen_nik') || res.error.code === 'PGRST204')) {
+        delete insertData.citizen_id;
+        delete insertData.citizen_nik;
+        res = await supabase.from('complaints').insert(insertData).select('*').single();
+      }
+
+      if (!res.error && res.data) {
+        newComplaint.id = res.data.id;
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase insert complaint error, saving locally.', err);

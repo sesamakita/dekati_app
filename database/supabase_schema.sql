@@ -114,12 +114,16 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     resolution_notes TEXT,                             -- Catatan tindak lanjut aparat
     assigned_department VARCHAR(100),                  -- e.g. 'Seksi Pembangunan', 'Satlinmas'
     assigned_officer VARCHAR(100),
+    citizen_id UUID REFERENCES public.citizens(id) ON DELETE SET NULL, -- Relasi akun warga pelapor
+    citizen_nik VARCHAR(16),                           -- NIK warga pelapor
     created_at TIMESTAMPTZ DEFAULT NOW(),
     resolved_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_complaints_ticket ON public.complaints(ticket_number);
 CREATE INDEX IF NOT EXISTS idx_complaints_status ON public.complaints(status);
+CREATE INDEX IF NOT EXISTS idx_complaints_citizen_id ON public.complaints(citizen_id);
+CREATE INDEX IF NOT EXISTS idx_complaints_citizen_nik ON public.complaints(citizen_nik);
 
 -- ============================================================================
 -- 6. TABEL: BROADCAST & PENGUMUMAN DESA (ANNOUNCEMENTS)
