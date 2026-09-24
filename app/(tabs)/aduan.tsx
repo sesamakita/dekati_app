@@ -51,123 +51,132 @@ export default function AduanScreen() {
     let isMounted = true;
     loadData();
 
-    // Inisialisasi Supabase Realtime Channel
-    const channel = supabase
-      .channel('public:complaints:mobile-live')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'complaints' },
-        (payload) => {
-          if (!isMounted) return;
+    // Inisialisasi Supabase Realtime Channel dengan ID unik per siklus mount
+    // untuk mencegah error "cannot add postgres_changes callbacks after subscribe()" saat navigasi ulang
+    let channel: any = null;
+    try {
+      const uniqueChannelName = `complaints-live-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      channel = supabase
+        .channel(uniqueChannelName)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'complaints' },
+          (payload) => {
+            if (!isMounted) return;
 
-          if (payload.eventType === 'INSERT') {
-            const d: any = payload.new;
-            let parsedPhotos: string[] = [];
-            if (d.photo_url) {
-              const rawUrl = d.photo_url.trim();
-              if (rawUrl.startsWith('[') && rawUrl.endsWith(']')) {
-                try {
-                  const arr = JSON.parse(rawUrl);
-                  if (Array.isArray(arr)) parsedPhotos = arr;
-                } catch {
+            if (payload.eventType === 'INSERT') {
+              const d: any = payload.new;
+              let parsedPhotos: string[] = [];
+              if (d.photo_url) {
+                const rawUrl = d.photo_url.trim();
+                if (rawUrl.startsWith('[') && rawUrl.endsWith(']')) {
+                  try {
+                    const arr = JSON.parse(rawUrl);
+                    if (Array.isArray(arr)) parsedPhotos = arr;
+                  } catch {
+                    parsedPhotos = [rawUrl];
+                  }
+                } else if (rawUrl.includes(',')) {
+                  parsedPhotos = rawUrl.split(',').map((s: string) => s.trim()).filter(Boolean);
+                } else {
                   parsedPhotos = [rawUrl];
                 }
-              } else if (rawUrl.includes(',')) {
-                parsedPhotos = rawUrl.split(',').map((s: string) => s.trim()).filter(Boolean);
-              } else {
-                parsedPhotos = [rawUrl];
               }
-            }
 
-            const newComplaint: Complaint = {
-              id: d.id,
-              ticket_number: d.ticket_number,
-              category: d.category,
-              title: d.title,
-              description: d.description,
-              location: d.location_address || d.location || 'Desa Sukamaju',
-              reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
-              is_anonymous: !!d.is_anonymous,
-              status: d.status,
-              photo_url: parsedPhotos[0] || d.photo_url || undefined,
-              photo_urls: parsedPhotos.length > 0 ? parsedPhotos : undefined,
-              resolution_proof: d.resolution_proof,
-              resolution_notes: d.resolution_notes,
-              assigned_department: d.assigned_department,
-              assigned_officer: d.assigned_officer,
-              citizen_id: d.citizen_id,
-              citizen_nik: d.citizen_nik,
-              resolved_at: d.resolved_at,
-              created_at: d.created_at
-                ? new Date(d.created_at).toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })
-                : 'Hari ini',
-            };
+              const newComplaint: Complaint = {
+                id: d.id,
+                ticket_number: d.ticket_number,
+                category: d.category,
+                title: d.title,
+                description: d.description,
+                location: d.location_address || d.location || 'Desa Sukamaju',
+                reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
+                is_anonymous: !!d.is_anonymous,
+                status: d.status,
+                photo_url: parsedPhotos[0] || d.photo_url || undefined,
+                photo_urls: parsedPhotos.length > 0 ? parsedPhotos : undefined,
+                resolution_proof: d.resolution_proof,
+                resolution_notes: d.resolution_notes,
+                assigned_department: d.assigned_department,
+                assigned_officer: d.assigned_officer,
+                citizen_id: d.citizen_id,
+                citizen_nik: d.citizen_nik,
+                resolved_at: d.resolved_at,
+                created_at: d.created_at
+                  ? new Date(d.created_at).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'Hari ini',
+              };
 
-            setComplaints((prev) => {
-              if (prev.some((c) => c.id === newComplaint.id || c.ticket_number === newComplaint.ticket_number)) {
-                return prev;
-              }
-              return [newComplaint, ...prev];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            const d: any = payload.new;
-            let parsedPhotos: string[] = [];
-            if (d.photo_url) {
-              const rawUrl = d.photo_url.trim();
-              if (rawUrl.startsWith('[') && rawUrl.endsWith(']')) {
-                try {
-                  const arr = JSON.parse(rawUrl);
-                  if (Array.isArray(arr)) parsedPhotos = arr;
-                } catch {
+              setComplaints((prev) => {
+                if (prev.some((c) => c.id === newComplaint.id || c.ticket_number === newComplaint.ticket_number)) {
+                  return prev;
+                }
+                return [newComplaint, ...prev];
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              const d: any = payload.new;
+              let parsedPhotos: string[] = [];
+              if (d.photo_url) {
+                const rawUrl = d.photo_url.trim();
+                if (rawUrl.startsWith('[') && rawUrl.endsWith(']')) {
+                  try {
+                    const arr = JSON.parse(rawUrl);
+                    if (Array.isArray(arr)) parsedPhotos = arr;
+                  } catch {
+                    parsedPhotos = [rawUrl];
+                  }
+                } else if (rawUrl.includes(',')) {
+                  parsedPhotos = rawUrl.split(',').map((s: string) => s.trim()).filter(Boolean);
+                } else {
                   parsedPhotos = [rawUrl];
                 }
-              } else if (rawUrl.includes(',')) {
-                parsedPhotos = rawUrl.split(',').map((s: string) => s.trim()).filter(Boolean);
-              } else {
-                parsedPhotos = [rawUrl];
               }
-            }
 
-            setComplaints((prev) =>
-              prev.map((c) => {
-                if (c.id === d.id || c.ticket_number === d.ticket_number) {
-                  return {
-                    ...c,
-                    status: d.status,
-                    category: d.category || c.category,
-                    title: d.title || c.title,
-                    description: d.description || c.description,
-                    resolution_proof: d.resolution_proof,
-                    resolution_notes: d.resolution_notes,
-                    assigned_department: d.assigned_department,
-                    assigned_officer: d.assigned_officer,
-                    resolved_at: d.resolved_at,
-                    photo_url: parsedPhotos[0] || d.photo_url || c.photo_url,
-                    photo_urls: parsedPhotos.length > 0 ? parsedPhotos : c.photo_urls,
-                  };
-                }
-                return c;
-              })
-            );
-          } else if (payload.eventType === 'DELETE') {
-            const d: any = payload.old;
-            setComplaints((prev) => prev.filter((c) => c.id !== d.id));
+              setComplaints((prev) =>
+                prev.map((c) => {
+                  if (c.id === d.id || c.ticket_number === d.ticket_number) {
+                    return {
+                      ...c,
+                      status: d.status,
+                      category: d.category || c.category,
+                      title: d.title || c.title,
+                      description: d.description || c.description,
+                      resolution_proof: d.resolution_proof,
+                      resolution_notes: d.resolution_notes,
+                      assigned_department: d.assigned_department,
+                      assigned_officer: d.assigned_officer,
+                      resolved_at: d.resolved_at,
+                      photo_url: parsedPhotos[0] || d.photo_url || c.photo_url,
+                      photo_urls: parsedPhotos.length > 0 ? parsedPhotos : c.photo_urls,
+                    };
+                  }
+                  return c;
+                })
+              );
+            } else if (payload.eventType === 'DELETE') {
+              const d: any = payload.old;
+              setComplaints((prev) => prev.filter((c) => c.id !== d.id));
+            }
           }
-        }
-      )
-      .subscribe((status) => {
-        if (isMounted) {
-          setRealtimeActive(status === 'SUBSCRIBED');
-        }
-      });
+        )
+        .subscribe((status) => {
+          if (isMounted) {
+            setRealtimeActive(status === 'SUBSCRIBED');
+          }
+        });
+    } catch (err) {
+      console.warn('[Aduan] Error setting up realtime channel:', err);
+    }
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
