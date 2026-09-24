@@ -240,7 +240,7 @@ export default function LetterDetailScreen() {
                 <Text style={styles.qrNotice}>
                   Pindai QR Code ini untuk mengecek keaslian surat langsung di basis data resmi desa:
                 </Text>
-                <Text style={styles.qrUrl}>https://desa-sukamaju.desa.id/v/s/{request.qr_token}</Text>
+                <Text style={styles.qrUrl}>https://layanan.desa.id/v/s/{request.qr_token}</Text>
               </View>
 
               {/* Action Buttons */}

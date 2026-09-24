@@ -485,23 +485,23 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.bentoCardTitle}>APBDes {apbdesData?.fiscal_year || 2026}</Text>
               <Text style={styles.apbdesAmount}>
-                {apbdesData
+                {apbdesData && (apbdesData.belanja?.total || 0) > 0
                   ? 'Rp ' +
-                    (apbdesData.belanja?.total >= 1000000000
+                    (apbdesData.belanja.total >= 1000000000
                       ? (apbdesData.belanja.total / 1000000000).toFixed(2).replace('.', ',') + ' M'
-                      : (apbdesData.belanja?.total / 1000000).toFixed(0) + ' Jt')
-                  : 'Rp 1,48 M'}
+                      : (apbdesData.belanja.total / 1000000).toFixed(0) + ' Jt')
+                  : 'Rp 0'}
               </Text>
               <View style={styles.apbdesProgressBg}>
                 <View
                   style={[
                     styles.apbdesProgressFill,
-                    { width: `${Math.min(apbdesData?.realisasi_persen || 74.5, 100)}%` },
+                    { width: `${Math.min(apbdesData?.realisasi_persen || 0, 100)}%` },
                   ]}
                 />
               </View>
               <Text style={styles.apbdesProgressLabel}>
-                {apbdesData?.realisasi_persen || 74.5}% Realisasi Anggaran
+                {apbdesData?.realisasi_persen || 0}% Realisasi Anggaran
               </Text>
             </TouchableOpacity>
           </View>
@@ -605,10 +605,10 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.miniCardTitle}>Agenda Desa</Text>
               <Text style={styles.miniCardInfo} numberOfLines={1}>
-                {villageEvents[0]?.title || 'Posyandu Balita & Lansia'}
+                {villageEvents[0]?.title || 'Belum ada agenda'}
               </Text>
               <Text style={styles.miniCardDate} numberOfLines={1}>
-                {villageEvents[0]?.event_date || 'Rabu, 24 Sep 2026'}
+                {villageEvents[0]?.event_date || 'Jadwal akan diumumkan'}
               </Text>
             </TouchableOpacity>
 
@@ -622,7 +622,7 @@ export default function HomeScreen() {
                 <Ionicons name="call" size={18} color={Colors.urgent} />
               </View>
               <Text style={styles.miniCardTitle}>Kontak Siaga</Text>
-              <Text style={styles.miniCardInfo}>Puskesmas & Bhabin</Text>
+              <Text style={styles.miniCardInfo}>Panggilan Darurat</Text>
               <View style={styles.emergencyCallPill}>
                 <Text style={styles.emergencyCallText}>Panggil Darurat</Text>
               </View>
@@ -658,25 +658,34 @@ export default function HomeScreen() {
               Klik kontak di bawah untuk segera terhubung dalam situasi genting atau medis:
             </Text>
 
-            {(emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).map((contact: any, i: number) => (
-              <TouchableOpacity
-                key={contact.id || i}
-                style={styles.contactItem}
-                activeOpacity={0.7}
-                onPress={() => Linking.openURL(`tel:${contact.phone.replace(/[^0-9]/g, '')}`)}
-              >
-                <View style={styles.contactIconCircle}>
-                  <Ionicons name={(contact.icon as any) || 'call'} size={16} color={Colors.urgent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.contactName}>{contact.title}</Text>
-                  <Text style={styles.contactPhone}>{contact.phone}</Text>
-                </View>
-                <View style={styles.callPill}>
-                  <Text style={styles.callPillText}>Hubungi</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {(emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).length === 0 ? (
+              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                <Ionicons name="call-outline" size={36} color={Colors.textMuted} />
+                <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 8 }}>
+                  Belum ada nomor kontak darurat terdaftar
+                </Text>
+              </View>
+            ) : (
+              (emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).map((contact: any, i: number) => (
+                <TouchableOpacity
+                  key={contact.id || i}
+                  style={styles.contactItem}
+                  activeOpacity={0.7}
+                  onPress={() => Linking.openURL(`tel:${contact.phone.replace(/[^0-9]/g, '')}`)}
+                >
+                  <View style={styles.contactIconCircle}>
+                    <Ionicons name={(contact.icon as any) || 'call'} size={16} color={Colors.urgent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.contactName}>{contact.title}</Text>
+                    <Text style={styles.contactPhone}>{contact.phone}</Text>
+                  </View>
+                  <View style={styles.callPill}>
+                    <Text style={styles.callPillText}>Hubungi</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
 
             <TouchableOpacity
               style={styles.modalCloseButton}

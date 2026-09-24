@@ -46,12 +46,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleDemoFill = () => {
-    setIdentifier('3201012345670001');
-    setPassword('password123');
-    Alert.alert('Demo Mode Aktif', 'Data demo warga (Ahmad Subarjo - 3201012345670001) terisi otomatis.');
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -130,16 +124,6 @@ export default function LoginScreen() {
             >
               <Text style={styles.loginBtnText}>{loading ? 'Memverifikasi...' : 'Masuk Sekarang'}</Text>
               <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
-            </TouchableOpacity>
-
-            {/* DEMO BUTTON */}
-            <TouchableOpacity
-              style={styles.demoBtn}
-              activeOpacity={0.85}
-              onPress={handleDemoFill}
-            >
-              <Ionicons name="flash-outline" size={16} color={Colors.primary} />
-              <Text style={styles.demoBtnText}>Isi Akun Demo Warga</Text>
             </TouchableOpacity>
 
             {/* GUEST ACCESS */}

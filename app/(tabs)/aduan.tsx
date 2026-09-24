@@ -89,7 +89,7 @@ export default function AduanScreen() {
                 category: d.category,
                 title: d.title,
                 description: d.description,
-                location: d.location_address || d.location || 'Desa Sukamaju',
+                location: d.location_address || d.location || 'Wilayah Desa',
                 reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
                 is_anonymous: !!d.is_anonymous,
                 status: d.status,

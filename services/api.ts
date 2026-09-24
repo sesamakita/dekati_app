@@ -173,21 +173,16 @@ class ApiService {
     }
 
     if (members.length === 0) {
-      // Jika database belum mengembalikan data atau offline
-      if (current.nik === mockUser.nik) {
-        members = mockFamilyMembers.map(m => ({
-          ...m,
-          verification_status: 'verified' as const,
-          foto_kk_path: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80'
-        }));
+      if (current && current.nik) {
+        members = [{ ...current, verification_status: (current.is_verified ? 'verified' : 'pending') as 'verified' | 'pending' }];
       } else {
-        members = [{ ...current, verification_status: 'verified' as const }];
+        members = [];
       }
     }
 
-    // Pastikan akun yang sedang login selalu ada di dalam list (sebagai Kepala Keluarga terverifikasi)
-    if (!members.some((m) => m.nik === current.nik)) {
-      members.unshift({ ...current, verification_status: 'verified' as const });
+    // Pastikan akun yang sedang login ada di dalam list jika memiliki NIK
+    if (current && current.nik && !members.some((m) => m.nik === current.nik)) {
+      members.unshift({ ...current, verification_status: (current.is_verified ? 'verified' : 'pending') as 'verified' | 'pending' });
     }
 
     // Gabungkan dengan anggota yang baru ditambahkan secara lokal/sesi
@@ -999,7 +994,7 @@ class ApiService {
           category: d.category || 'Kesehatan',
           event_date: d.event_date ? new Date(d.event_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'Segera',
           event_time: d.event_time || '08.00 WIB',
-          location: d.location || 'Balai Desa Sukamaju',
+          location: d.location || 'Balai Desa',
           organizer: d.organizer || 'Pemerintah Desa',
           description: d.description || '',
           is_active: d.is_active,

@@ -186,29 +186,11 @@ export const auth = {
       console.warn('[Auth] Supabase query error, fallback ke verifikasi lokal:', err);
     }
 
-    // Jika database online tidak menemukan, cek apakah data demo cocok (Ahmad Subarjo)
+    // Jika database tidak menemukan NIK warga
     if (!citizenRow) {
-      if (cleanId === mockUser.nik || cleanId === '081234567890' || cleanId === '3201012345670001') {
-        citizenRow = {
-          id: mockUser.id,
-          nik: mockUser.nik,
-          no_kk: mockUser.no_kk,
-          nama_lengkap: mockUser.nama_lengkap,
-          jenis_kelamin: mockUser.jenis_kelamin,
-          status_dalam_keluarga: mockUser.status_keluarga,
-          tanggal_lahir: mockUser.tanggal_lahir,
-          pekerjaan: mockUser.pekerjaan,
-          rt: mockUser.rt,
-          rw: mockUser.rw,
-          dusun: mockUser.dusun,
-          phone_number: '081234567890',
-          is_verified: true,
-        };
-      } else {
-        throw new Error(
-          'NIK atau Nomor WhatsApp tidak ditemukan dalam data kependudukan desa. Pastikan nomor sudah benar atau daftarkan akun baru.'
-        );
-      }
+      throw new Error(
+        'NIK atau Nomor WhatsApp tidak ditemukan dalam data kependudukan desa. Pastikan nomor sudah benar atau daftarkan akun baru.'
+      );
     }
 
     // Verifikasi kata sandi
