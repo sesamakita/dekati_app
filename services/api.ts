@@ -12,11 +12,15 @@ import {
   mockComplaints,
   mockAnnouncements,
   mockApbdes,
+  mockEmergencyContacts,
+  mockVillageEvents,
   Citizen,
   LetterType,
   LetterRequest,
   Complaint,
-  Announcement
+  Announcement,
+  EmergencyContact,
+  VillageEvent
 } from '@/store/mockData';
 
 class ApiService {
@@ -466,7 +470,15 @@ class ApiService {
     ];
   }
 
-  async getLetterRequests(): Promise<LetterRequest[]> {
+  async getLetterRequests(options?: { onlyMyFamily?: boolean }): Promise<LetterRequest[]> {
+    const user = await this.getCurrentUser();
+    const family = await this.getFamilyMembers();
+    const familyNiks = new Set<string>();
+    if (user?.nik) familyNiks.add(user.nik);
+    for (const f of family) {
+      if (f.nik) familyNiks.add(f.nik);
+    }
+
     let cloudRequests: LetterRequest[] = [];
     try {
       const { data, error } = await supabase
@@ -475,7 +487,18 @@ class ApiService {
         .order('created_at', { ascending: false });
 
       if (!error && data && Array.isArray(data) && data.length > 0) {
-        cloudRequests = data.map((d: any) => ({
+        let filteredData = data;
+        // Filter privasi: Hanya tampilkan permohonan surat milik pengguna atau anggota keluarga 1 KK
+        if (options?.onlyMyFamily !== false) {
+          filteredData = data.filter((d: any) => {
+            if (d.citizen_nik && familyNiks.has(d.citizen_nik)) return true;
+            if (d.applicant_user_id && user?.id && d.applicant_user_id === user.id) return true;
+            if (d.applicant_name && user?.nama_lengkap && d.applicant_name.trim().toLowerCase() === user.nama_lengkap.trim().toLowerCase()) return true;
+            return false;
+          });
+        }
+
+        cloudRequests = filteredData.map((d: any) => ({
           id: d.id,
           tracking_number: d.tracking_number,
           letter_type_id: d.letter_type_id || 1,
@@ -506,7 +529,10 @@ class ApiService {
     // Gabungkan data dari Supabase dengan data lokal sesi
     const combined = [...cloudRequests];
     for (const local of this.localLetterRequests) {
-      if (!combined.some((c) => c.id === local.id || c.tracking_number === local.tracking_number)) {
+      const matchFamily = options?.onlyMyFamily !== false
+        ? (familyNiks.has(local.citizen_nik) || local.applicant_name === user?.nama_lengkap)
+        : true;
+      if (matchFamily && !combined.some((c) => c.id === local.id || c.tracking_number === local.tracking_number)) {
         combined.push(local);
       }
     }
@@ -880,16 +906,23 @@ class ApiService {
         const pendapatanItems = data.filter((i: any) => i.type === 'pendapatan').map((i: any) => ({
           name: i.name,
           amount: Number(i.budget_amount),
+          realized: Number(i.realized_amount || 0),
           percentage: Number(i.percentage)
         }));
         const belanjaItems = data.filter((i: any) => i.type === 'belanja').map((i: any) => ({
           name: i.name,
           amount: Number(i.budget_amount),
+          realized: Number(i.realized_amount || 0),
           percentage: Number(i.percentage)
         }));
 
         const totalPendapatan = pendapatanItems.reduce((acc: number, curr: any) => acc + curr.amount, 0);
         const totalBelanja = belanjaItems.reduce((acc: number, curr: any) => acc + curr.amount, 0);
+        const totalBelanjaRealisasi = belanjaItems.reduce((acc: number, curr: any) => acc + curr.realized, 0);
+
+        const realisasiPersen = totalBelanja > 0
+          ? Number(((totalBelanjaRealisasi / totalBelanja) * 100).toFixed(1))
+          : 74.5;
 
         return {
           fiscal_year: 2026,
@@ -899,15 +932,71 @@ class ApiService {
           },
           belanja: {
             total: totalBelanja,
+            total_realisasi: totalBelanjaRealisasi,
             items: belanjaItems
           },
-          realisasi_persen: 74.5
+          realisasi_persen: realisasiPersen
         };
       }
     } catch (err) {
       console.warn('[Dekati Mobile] Supabase getApbdes offline fallback.', err);
     }
     return mockApbdes;
+  }
+
+  // ==========================================
+  // 5. Emergency Contacts & Village Events
+  // ==========================================
+  async getEmergencyContacts(): Promise<EmergencyContact[]> {
+    try {
+      const { data, error } = await supabase
+        .from('emergency_contacts')
+        .select('*')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          phone: d.phone,
+          icon: d.icon || 'call',
+          description: d.description || '',
+          order_index: d.order_index,
+          is_active: d.is_active,
+        }));
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] Supabase getEmergencyContacts fallback.', err);
+    }
+    return mockEmergencyContacts;
+  }
+
+  async getVillageEvents(): Promise<VillageEvent[]> {
+    try {
+      const { data, error } = await supabase
+        .from('village_events')
+        .select('*')
+        .eq('is_active', true)
+        .order('event_date', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        return data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          category: d.category || 'Kesehatan',
+          event_date: d.event_date ? new Date(d.event_date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }) : 'Segera',
+          event_time: d.event_time || '08.00 WIB',
+          location: d.location || 'Balai Desa Sukamaju',
+          organizer: d.organizer || 'Pemerintah Desa',
+          description: d.description || '',
+          is_active: d.is_active,
+        }));
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] Supabase getVillageEvents fallback.', err);
+    }
+    return mockVillageEvents;
   }
 }
 

@@ -20,7 +20,7 @@ import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { supabase } from '@/services/supabase';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { Citizen, LetterRequest, Announcement } from '@/store/mockData';
+import { Citizen, LetterRequest, Announcement, EmergencyContact, VillageEvent } from '@/store/mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 
@@ -37,6 +37,11 @@ export default function HomeScreen() {
   const [user, setUser] = useState<Citizen | null>(authUser);
   const [latestLetter, setLatestLetter] = useState<LetterRequest | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [apbdesData, setApbdesData] = useState<any>(null);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [villageEvents, setVillageEvents] = useState<VillageEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<VillageEvent | null>(null);
+  const [showEventModal, setShowEventModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [isUrgentExpanded, setIsUrgentExpanded] = useState(false);
@@ -83,13 +88,21 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      const userData = authUser || (await api.getCurrentUser());
-      const letters = await api.getLetterRequests();
-      const news = await api.getAnnouncements();
+      const [userData, letters, news, apbdes, emg, evts] = await Promise.all([
+        authUser || api.getCurrentUser(),
+        api.getLetterRequests(),
+        api.getAnnouncements(),
+        api.getApbdes(),
+        api.getEmergencyContacts(),
+        api.getVillageEvents(),
+      ]);
 
       setUser(userData);
       setLatestLetter(letters.length > 0 ? letters[0] : null);
       setAnnouncements(news);
+      setApbdesData(apbdes);
+      setEmergencyContacts(emg);
+      setVillageEvents(evts);
 
       // Tampilkan popup/modal pertama kali hanya jika ada 'Pengumuman Penting' (is_urgent)
       const urgent = news.find((a) => a.is_urgent);
@@ -113,27 +126,46 @@ export default function HomeScreen() {
   useEffect(() => {
     loadData();
 
-    // Realtime Supabase updates: pengumuman baru langsung tampil di mobile
-    const channel = supabase
-      .channel('mobile-home-channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'announcements' },
-        () => {
-          loadData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'letter_requests' },
-        () => {
-          loadData();
-        }
-      )
-      .subscribe();
+    // Realtime Supabase updates: pengumuman, surat, kontak darurat, dan agenda baru langsung tampil di mobile
+    let channel: any = null;
+    try {
+      const chName = `mobile-home-live-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      channel = supabase
+        .channel(chName)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'announcements' },
+          () => loadData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'letter_requests' },
+          () => loadData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'emergency_contacts' },
+          () => loadData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'village_events' },
+          () => loadData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'apbdes_items' },
+          () => loadData()
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('[Home] Channel setup error:', err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
@@ -451,12 +483,26 @@ export default function HomeScreen() {
               <View style={styles.bentoIconBoxAmber}>
                 <Ionicons name="pie-chart" size={20} color={Colors.accent} />
               </View>
-              <Text style={styles.bentoCardTitle}>APBDes 2026</Text>
-              <Text style={styles.apbdesAmount}>Rp 1,48 M</Text>
+              <Text style={styles.bentoCardTitle}>APBDes {apbdesData?.fiscal_year || 2026}</Text>
+              <Text style={styles.apbdesAmount}>
+                {apbdesData
+                  ? 'Rp ' +
+                    (apbdesData.belanja?.total >= 1000000000
+                      ? (apbdesData.belanja.total / 1000000000).toFixed(2).replace('.', ',') + ' M'
+                      : (apbdesData.belanja?.total / 1000000).toFixed(0) + ' Jt')
+                  : 'Rp 1,48 M'}
+              </Text>
               <View style={styles.apbdesProgressBg}>
-                <View style={[styles.apbdesProgressFill, { width: '84%' }]} />
+                <View
+                  style={[
+                    styles.apbdesProgressFill,
+                    { width: `${Math.min(apbdesData?.realisasi_persen || 74.5, 100)}%` },
+                  ]}
+                />
               </View>
-              <Text style={styles.apbdesProgressLabel}>84% Realisasi Anggaran</Text>
+              <Text style={styles.apbdesProgressLabel}>
+                {apbdesData?.realisasi_persen || 74.5}% Realisasi Anggaran
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -544,17 +590,29 @@ export default function HomeScreen() {
 
           {/* BENTO ROW: 2 MINI ACTION CARDS */}
           <View style={styles.bentoRow}>
-            {/* MINI 1: AGENDA POSYANDU & DESA */}
-            <View style={[styles.bentoMiniCol, styles.bentoPurple]}>
+            {/* MINI 1: AGENDA POSYANDU & DESA (DINAMIS DARI DB) */}
+            <TouchableOpacity
+              style={[styles.bentoMiniCol, styles.bentoPurple]}
+              activeOpacity={0.85}
+              onPress={() => {
+                const targetEvent = villageEvents[0] || null;
+                setSelectedEvent(targetEvent);
+                setShowEventModal(true);
+              }}
+            >
               <View style={styles.miniIconBoxPurple}>
                 <Ionicons name="calendar" size={18} color={Colors.purple} />
               </View>
               <Text style={styles.miniCardTitle}>Agenda Desa</Text>
-              <Text style={styles.miniCardInfo}>Posyandu Balita & Lansia</Text>
-              <Text style={styles.miniCardDate}>Rabu, 24 Sep 2026</Text>
-            </View>
+              <Text style={styles.miniCardInfo} numberOfLines={1}>
+                {villageEvents[0]?.title || 'Posyandu Balita & Lansia'}
+              </Text>
+              <Text style={styles.miniCardDate} numberOfLines={1}>
+                {villageEvents[0]?.event_date || 'Rabu, 24 Sep 2026'}
+              </Text>
+            </TouchableOpacity>
 
-            {/* MINI 2: KONTAK DARURAT 24 JAM */}
+            {/* MINI 2: KONTAK DARURAT 24 JAM (DINAMIS DARI DB) */}
             <TouchableOpacity
               style={[styles.bentoMiniCol, styles.bentoRose]}
               activeOpacity={0.85}
@@ -600,15 +658,15 @@ export default function HomeScreen() {
               Klik kontak di bawah untuk segera terhubung dalam situasi genting atau medis:
             </Text>
 
-            {Config.emergencyContacts.map((contact, i) => (
+            {(emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).map((contact: any, i: number) => (
               <TouchableOpacity
-                key={i}
+                key={contact.id || i}
                 style={styles.contactItem}
                 activeOpacity={0.7}
                 onPress={() => Linking.openURL(`tel:${contact.phone.replace(/[^0-9]/g, '')}`)}
               >
                 <View style={styles.contactIconCircle}>
-                  <Ionicons name="call" size={16} color={Colors.urgent} />
+                  <Ionicons name={(contact.icon as any) || 'call'} size={16} color={Colors.urgent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.contactName}>{contact.title}</Text>
@@ -626,6 +684,77 @@ export default function HomeScreen() {
             >
               <Text style={styles.modalCloseText}>Tutup</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* VILLAGE EVENT DETAIL MODAL */}
+      <Modal
+        visible={showEventModal && !!selectedEvent}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEventModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalTitleRow}>
+                <View style={[styles.modalIconBox, { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }]}>
+                  <Ionicons name="calendar" size={20} color={Colors.purple} />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.modalTitle} numberOfLines={1}>Agenda Resmi Desa</Text>
+                  <Text style={styles.modalSubtitle}>{selectedEvent?.category || 'Kegiatan Warga'}</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setShowEventModal(false)}>
+                <Ionicons name="close-circle-outline" size={26} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedEvent && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: Colors.textPrimary, marginBottom: 12 }}>
+                  {selectedEvent.title}
+                </Text>
+
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', gap: 10, marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="time-outline" size={16} color={Colors.primary} />
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textPrimary }}>
+                      {selectedEvent.event_date} • {selectedEvent.event_time}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="location-outline" size={16} color={Colors.urgent} />
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textPrimary, flex: 1 }}>
+                      {selectedEvent.location}
+                    </Text>
+                  </View>
+                  {selectedEvent.organizer && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="people-outline" size={16} color={Colors.secondary} />
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textSecondary }}>
+                        Penyelenggara: {selectedEvent.organizer}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {selectedEvent.description ? (
+                  <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 16 }}>
+                    {selectedEvent.description}
+                  </Text>
+                ) : null}
+
+                <TouchableOpacity
+                  style={[styles.modalCloseButton, { backgroundColor: Colors.purple }]}
+                  onPress={() => setShowEventModal(false)}
+                >
+                  <Text style={styles.modalCloseText}>Tutup Informasi</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

@@ -87,6 +87,61 @@ export interface Announcement {
   views: number;
 }
 
+export interface EmergencyContact {
+  id: string;
+  title: string;
+  phone: string;
+  icon?: string;
+  description?: string;
+  order_index?: number;
+  is_active?: boolean;
+}
+
+export interface VillageEvent {
+  id: string;
+  title: string;
+  category: string;
+  event_date: string;
+  event_time: string;
+  location: string;
+  organizer?: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+export const mockEmergencyContacts: EmergencyContact[] = [
+  { id: 'emg-1', title: 'Ambulans Desa 24 Jam', phone: '0812-3456-7890', icon: 'car', description: 'Layanan antar rujukan darurat gratis untuk warga' },
+  { id: 'emg-2', title: 'Bhabinkamtibmas Polsek', phone: '0813-9876-5432', icon: 'shield', description: 'Petugas kepolisian pembina kamtibmas desa' },
+  { id: 'emg-3', title: 'Babinsa Koramil', phone: '0811-2233-4455', icon: 'shield-checkmark', description: 'Bintara pembina ketahanan wilayah desa' },
+  { id: 'emg-4', title: 'Puskesmas / Bidan Desa', phone: '0821-5566-7788', icon: 'medkit', description: 'Pemeriksaan darurat medis & persalinan' },
+  { id: 'emg-5', title: 'Sekretariat Kantor Desa', phone: '0251-876543', icon: 'business', description: 'Layanan informasi umum & administrasi kantor' },
+];
+
+export const mockVillageEvents: VillageEvent[] = [
+  {
+    id: 'evt-1',
+    title: 'Posyandu Balita & Lansia',
+    category: 'Kesehatan',
+    event_date: 'Rabu, 24 Sep 2026',
+    event_time: '08.30 - 11.30 WIB',
+    location: 'Pos RW 01 Sukamaju',
+    organizer: 'Kader Posyandu Melati',
+    description: 'Pemeriksaan rutin tumbuh kembang balita, imunisasi dasar, dan cek tensi/gula darah gratis bagi lansia.',
+    is_active: true
+  },
+  {
+    id: 'evt-2',
+    title: 'Kerja Bakti Lingkungan',
+    category: 'Lingkungan',
+    event_date: 'Minggu, 28 Sep 2026',
+    event_time: '07.00 - 10.00 WIB',
+    location: 'Saluran Drainase RT 01 - RT 04',
+    organizer: 'Karang Taruna & Satlinmas',
+    description: 'Gotong royong pembersihan saluran air parit dan pemangkasan dahan pohon rawan tumbang.',
+    is_active: true
+  }
+];
+
 // Current User Mock
 export const mockUser: Citizen = {
   id: 'usr-001',

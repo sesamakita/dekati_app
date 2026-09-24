@@ -809,3 +809,44 @@ VALUES
         'active'
     )
 ON CONFLICT (email) DO NOTHING;
+
+-- ============================================================================
+-- 15. TABEL: KONTAK SIAGA & DARURAT DESA (EMERGENCY CONTACTS)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.emergency_contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(150) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    icon VARCHAR(50) DEFAULT 'call',
+    description VARCHAR(255),
+    order_index INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.emergency_contacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Anon All emergency_contacts" ON public.emergency_contacts;
+CREATE POLICY "Public Anon All emergency_contacts" ON public.emergency_contacts FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_emergency_contacts_order ON public.emergency_contacts(order_index);
+
+-- ============================================================================
+-- 16. TABEL: AGENDA KEGIATAN & JADWAL RESMI DESA (VILLAGE EVENTS)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.village_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(200) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'Kesehatan',
+    event_date DATE NOT NULL,
+    event_time VARCHAR(50) NOT NULL,
+    location VARCHAR(200) NOT NULL,
+    organizer VARCHAR(150),
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.village_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Anon All village_events" ON public.village_events;
+CREATE POLICY "Public Anon All village_events" ON public.village_events FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_village_events_date ON public.village_events(event_date);
+

@@ -47,19 +47,27 @@ export default function SuratScreen() {
   useEffect(() => {
     loadData();
 
-    const channel = supabase
-      .channel('mobile-surat-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'letter_requests' },
-        () => {
-          loadData();
-        }
-      )
-      .subscribe();
+    let channel: any = null;
+    try {
+      const channelName = `mobile-surat-realtime-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      channel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'letter_requests' },
+          () => {
+            loadData();
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('[Surat] Realtime channel setup error:', e);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, []);
 
