@@ -749,6 +749,8 @@ class ApiService {
             assigned_officer: d.assigned_officer,
             citizen_id: d.citizen_id,
             citizen_nik: d.citizen_nik,
+            latitude: d.latitude,
+            longitude: d.longitude,
             resolved_at: d.resolved_at,
             created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini'
           });
@@ -844,14 +846,24 @@ class ApiService {
         photo_url: photoUrlToSave,
         citizen_id: user.id || null,
         citizen_nik: user.nik || null,
+        latitude: payload.latitude || null,
+        longitude: payload.longitude || null,
       };
 
       let res = await supabase.from('complaints').insert(insertData).select('*').single();
 
-      // Fallback jika database Supabase belum memiliki kolom citizen_id / citizen_nik
-      if (res.error && res.error.message && (res.error.message.includes('citizen_id') || res.error.message.includes('citizen_nik') || res.error.code === 'PGRST204')) {
+      // Fallback jika database Supabase belum memiliki kolom citizen_id / citizen_nik / latitude / longitude
+      if (res.error && res.error.message && (
+        res.error.message.includes('citizen_id') || 
+        res.error.message.includes('citizen_nik') || 
+        res.error.message.includes('latitude') || 
+        res.error.message.includes('longitude') || 
+        res.error.code === 'PGRST204'
+      )) {
         delete insertData.citizen_id;
         delete insertData.citizen_nik;
+        delete insertData.latitude;
+        delete insertData.longitude;
         res = await supabase.from('complaints').insert(insertData).select('*').single();
       }
 

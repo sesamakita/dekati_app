@@ -116,6 +116,8 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     assigned_officer VARCHAR(100),
     citizen_id UUID REFERENCES public.citizens(id) ON DELETE SET NULL, -- Relasi akun warga pelapor
     citizen_nik VARCHAR(16),                           -- NIK warga pelapor
+    latitude NUMERIC(10, 7),                           -- Koordinat GPS Latitude
+    longitude NUMERIC(10, 7),                          -- Koordinat GPS Longitude
     created_at TIMESTAMPTZ DEFAULT NOW(),
     resolved_at TIMESTAMPTZ
 );
