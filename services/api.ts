@@ -20,7 +20,8 @@ import {
   Complaint,
   Announcement,
   EmergencyContact,
-  VillageEvent
+  VillageEvent,
+  VillageProfile
 } from '@/store/mockData';
 
 class ApiService {
@@ -103,20 +104,39 @@ class ApiService {
         .maybeSingle();
 
       if (!error && data) {
+        const isVerified = !!data.is_verified;
+        const verifiedBy = data.verified_by || '';
+        const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+        const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+          ? 'verified'
+          : isRevision
+          ? 'needs_revision'
+          : 'pending';
+        const rejectionReason = isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined;
+
         this.currentCitizen = {
           id: data.id,
           nik: data.nik,
-          no_kk: data.no_kk,
+          no_kk: data.no_kk || '',
           nama_lengkap: data.nama_lengkap,
-          jenis_kelamin: data.jenis_kelamin,
-          status_keluarga: data.status_dalam_keluarga || 'Kepala Keluarga',
-          tanggal_lahir: data.tanggal_lahir,
-          pekerjaan: data.pekerjaan,
-          rt: data.rt,
-          rw: data.rw,
-          dusun: data.dusun,
-          is_verified: !!data.is_verified,
+          jenis_kelamin: data.jenis_kelamin || 'L',
+          status_keluarga: data.status_dalam_keluarga || '',
+          tanggal_lahir: data.tanggal_lahir || '',
+          pekerjaan: data.pekerjaan || '',
+          rt: data.rt || '',
+          rw: data.rw || '',
+          dusun: data.dusun || '',
+          is_verified: isVerified,
+          verified_by: verifiedBy,
+          foto_kk_path: data.foto_kk_path || undefined,
+          foto_ktp_path: data.foto_ktp_path || undefined,
+          foto_selfie_ktp_path: data.foto_selfie_ktp_path || undefined,
+          verification_status: verificationStatus,
+          rejection_reason: rejectionReason,
+          alamat_lengkap: data.alamat_lengkap || undefined,
+          village_name: data.village_name || undefined,
         };
+        auth.updateSessionCitizen(this.currentCitizen);
         return this.currentCitizen;
       }
     } catch (err) {
@@ -130,11 +150,22 @@ class ApiService {
     let members: Citizen[] = [];
 
     try {
-      const { data, error } = await supabase
-        .from('citizens')
-        .select('*')
-        .eq('no_kk', current.no_kk)
-        .order('created_at', { ascending: true });
+      let queryRes: any = null;
+      if (current.no_kk && current.no_kk.trim()) {
+        queryRes = await supabase
+          .from('citizens')
+          .select('*')
+          .eq('no_kk', current.no_kk.trim())
+          .order('created_at', { ascending: true });
+      } else if (current.nik) {
+        queryRes = await supabase
+          .from('citizens')
+          .select('*')
+          .eq('nik', current.nik);
+      }
+
+      const data = queryRes?.data;
+      const error = queryRes?.error;
 
       if (!error && data && data.length > 0) {
         members = data.map((d: any) => {
@@ -151,18 +182,20 @@ class ApiService {
           return {
             id: d.id,
             nik: d.nik,
-            no_kk: d.no_kk,
+            no_kk: d.no_kk || '',
             nama_lengkap: d.nama_lengkap,
             jenis_kelamin: (d.jenis_kelamin as 'L' | 'P') || 'L',
-            status_keluarga: d.status_dalam_keluarga || 'Anggota Keluarga',
-            tanggal_lahir: d.tanggal_lahir || '2000-01-01',
-            pekerjaan: d.pekerjaan || 'Warga Desa',
-            rt: d.rt || current.rt,
-            rw: d.rw || current.rw,
-            dusun: d.dusun || current.dusun,
+            status_keluarga: d.status_dalam_keluarga || '',
+            tanggal_lahir: d.tanggal_lahir || '',
+            pekerjaan: d.pekerjaan || '',
+            rt: d.rt || current.rt || '',
+            rw: d.rw || current.rw || '',
+            dusun: d.dusun || current.dusun || '',
             is_verified: isVerified,
             verified_by: verifiedBy,
             foto_kk_path: d.foto_kk_path,
+            foto_ktp_path: d.foto_ktp_path,
+            foto_selfie_ktp_path: d.foto_selfie_ktp_path,
             verification_status: verificationStatus,
             rejection_reason: rejectionReason,
           };
@@ -217,7 +250,7 @@ class ApiService {
     }
 
     const current = await this.getCurrentUser();
-    const noKk = current.no_kk || '3201010000000001';
+    const noKk = current.no_kk || '';
 
     let cloudPhotoPath = payload.foto_kk_path || '';
     if (cloudPhotoPath && cloudPhotoPath.startsWith('file://')) {
@@ -226,17 +259,17 @@ class ApiService {
 
     const insertPayload: any = {
       nik: cleanNik,
-      no_kk: noKk,
+      no_kk: noKk || null,
       nama_lengkap: cleanNama,
       jenis_kelamin: payload.jenis_kelamin || 'L',
-      status_dalam_keluarga: payload.status_keluarga || 'Anak',
-      tanggal_lahir: payload.tanggal_lahir || '2005-01-01',
-      pekerjaan: payload.pekerjaan || 'Pelajar/Belum Bekerja',
-      rt: current.rt || '01',
-      rw: current.rw || '01',
-      dusun: current.dusun || 'Dusun Mekar',
-      alamat_lengkap: `Kp. Sukamaju, RT ${current.rt || '01'}/RW ${current.rw || '01'}, Desa ${Config.villageName}`,
-      phone_number: payload.phone_number || '',
+      status_dalam_keluarga: payload.status_keluarga || null,
+      tanggal_lahir: payload.tanggal_lahir?.trim() || null,
+      pekerjaan: payload.pekerjaan?.trim() || null,
+      rt: current.rt?.trim() || null,
+      rw: current.rw?.trim() || null,
+      dusun: current.dusun?.trim() || null,
+      alamat_lengkap: current.alamat_lengkap || null,
+      phone_number: payload.phone_number?.trim() || null,
       foto_kk_path: cloudPhotoPath,
       is_verified: false,
     };
@@ -252,15 +285,15 @@ class ApiService {
         const newCitizen: Citizen = {
           id: data.id,
           nik: data.nik,
-          no_kk: data.no_kk,
+          no_kk: data.no_kk || noKk || '',
           nama_lengkap: data.nama_lengkap,
           jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || payload.jenis_kelamin,
-          status_keluarga: data.status_dalam_keluarga || payload.status_keluarga,
-          tanggal_lahir: data.tanggal_lahir || payload.tanggal_lahir || '2005-01-01',
-          pekerjaan: data.pekerjaan || payload.pekerjaan || 'Pelajar/Belum Bekerja',
-          rt: data.rt || current.rt,
-          rw: data.rw || current.rw,
-          dusun: data.dusun || current.dusun,
+          status_keluarga: data.status_dalam_keluarga || payload.status_keluarga || '',
+          tanggal_lahir: data.tanggal_lahir || payload.tanggal_lahir || '',
+          pekerjaan: data.pekerjaan || payload.pekerjaan || '',
+          rt: data.rt || current.rt || '',
+          rw: data.rw || current.rw || '',
+          dusun: data.dusun || current.dusun || '',
           is_verified: false,
           verification_status: 'pending',
           foto_kk_path: data.foto_kk_path || cloudPhotoPath,
@@ -287,12 +320,12 @@ class ApiService {
       no_kk: noKk,
       nama_lengkap: cleanNama,
       jenis_kelamin: payload.jenis_kelamin,
-      status_keluarga: payload.status_keluarga,
-      tanggal_lahir: payload.tanggal_lahir || '2005-01-01',
-      pekerjaan: payload.pekerjaan || 'Pelajar/Belum Bekerja',
-      rt: current.rt || '01',
-      rw: current.rw || '01',
-      dusun: current.dusun || 'Dusun Mekar',
+      status_keluarga: payload.status_keluarga || '',
+      tanggal_lahir: payload.tanggal_lahir || '',
+      pekerjaan: payload.pekerjaan || '',
+      rt: current.rt || '',
+      rw: current.rw || '',
+      dusun: current.dusun || '',
       is_verified: false,
       verification_status: 'pending',
       foto_kk_path: cloudPhotoPath,
@@ -340,6 +373,89 @@ class ApiService {
     return { success: true };
   }
 
+  /**
+   * Mengunggah dua berkas verifikasi identitas (Foto KTP dan Swafoto Pegang KTP)
+   * Mengirimkan berkas ke Supabase Storage & memperbarui profil warga di database.
+   */
+  async uploadCitizenVerificationDocs(payload: {
+    citizenId: string;
+    fotoKtpUri: string;
+    fotoKtpBase64?: string | null;
+    fotoSelfieUri: string;
+    fotoSelfieBase64?: string | null;
+    fotoKkUri?: string | null;
+    fotoKkBase64?: string | null;
+  }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
+    try {
+      let cloudKtp = payload.fotoKtpUri;
+      if (cloudKtp && cloudKtp.startsWith('file://')) {
+        cloudKtp = await uploadImageToSupabase(cloudKtp, 'citizens', payload.fotoKtpBase64);
+      }
+
+      let cloudSelfie = payload.fotoSelfieUri;
+      if (cloudSelfie && cloudSelfie.startsWith('file://')) {
+        cloudSelfie = await uploadImageToSupabase(cloudSelfie, 'citizens', payload.fotoSelfieBase64);
+      }
+
+      let cloudKk = payload.fotoKkUri || '';
+      if (cloudKk && cloudKk.startsWith('file://')) {
+        cloudKk = await uploadImageToSupabase(cloudKk, 'citizens', payload.fotoKkBase64);
+      }
+
+      const updatePayload: any = {
+        foto_ktp_path: cloudKtp,
+        foto_selfie_ktp_path: cloudSelfie,
+        foto_kk_path: cloudKk || cloudKtp,
+        is_verified: false,
+        verified_by: null, // Reset catatan revisi lama agar status kembali 'Menunggu Validasi'
+        updated_at: new Date().toISOString()
+      };
+
+      try {
+        await supabase
+          .from('citizens')
+          .update(updatePayload)
+          .eq('id', payload.citizenId);
+      } catch (dbErr) {
+        console.warn('[Dekati Mobile] uploadCitizenVerificationDocs Supabase exception:', dbErr);
+      }
+
+      const updatedCitizen: Citizen = {
+        ...this.currentCitizen,
+        foto_ktp_path: cloudKtp,
+        foto_selfie_ktp_path: cloudSelfie,
+        foto_kk_path: cloudKk || this.currentCitizen.foto_kk_path || cloudKtp,
+        is_verified: false,
+        verification_status: 'pending',
+        rejection_reason: undefined,
+        verified_by: undefined
+      };
+
+      this.currentCitizen = updatedCitizen;
+      await auth.updateSessionCitizen(updatedCitizen);
+
+      // Sinkronkan juga pada daftar family members lokal jika ada
+      const fIdx = this.localFamilyMembers.findIndex(m => m.id === payload.citizenId || m.nik === updatedCitizen.nik);
+      if (fIdx !== -1) {
+        this.localFamilyMembers[fIdx] = {
+          ...this.localFamilyMembers[fIdx],
+          foto_ktp_path: cloudKtp,
+          foto_selfie_ktp_path: cloudSelfie,
+          foto_kk_path: cloudKk || this.localFamilyMembers[fIdx].foto_kk_path || cloudKtp,
+          is_verified: false,
+          verification_status: 'pending',
+          rejection_reason: undefined,
+          verified_by: undefined
+        };
+      }
+
+      return { success: true, data: updatedCitizen };
+    } catch (err: any) {
+      console.warn('[Dekati Mobile] uploadCitizenVerificationDocs error:', err);
+      return { success: false, message: err?.message || 'Gagal mengunggah berkas verifikasi.' };
+    }
+  }
+
   async deleteFamilyMember(citizenId: string): Promise<{ success: boolean; message?: string }> {
     try {
       const { error } = await supabase
@@ -356,6 +472,133 @@ class ApiService {
 
     this.localFamilyMembers = this.localFamilyMembers.filter((m) => m.id !== citizenId);
     return { success: true };
+  }
+
+  /**
+   * Memperbarui profil kependudukan warga/anggota keluarga dan sinkronisasi ke VPS database (Supabase)
+   */
+  async updateCitizenProfile(payload: {
+    id: string;
+    nama_lengkap?: string;
+    no_kk?: string;
+    status_keluarga?: string;
+    jenis_kelamin?: 'L' | 'P';
+    tanggal_lahir?: string;
+    pekerjaan?: string;
+    rt?: string;
+    rw?: string;
+    dusun?: string;
+    alamat_lengkap?: string;
+    phone_number?: string;
+  }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
+    if (!payload.id) {
+      return { success: false, message: 'ID warga tidak valid.' };
+    }
+
+    const dbPayload: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (payload.nama_lengkap !== undefined) dbPayload.nama_lengkap = payload.nama_lengkap.trim();
+    if (payload.no_kk !== undefined) dbPayload.no_kk = payload.no_kk.trim() || null;
+    if (payload.status_keluarga !== undefined) dbPayload.status_dalam_keluarga = payload.status_keluarga.trim() || null;
+    if (payload.jenis_kelamin !== undefined) dbPayload.jenis_kelamin = payload.jenis_kelamin;
+    if (payload.tanggal_lahir !== undefined) dbPayload.tanggal_lahir = payload.tanggal_lahir.trim() || null;
+    if (payload.pekerjaan !== undefined) dbPayload.pekerjaan = payload.pekerjaan.trim() || null;
+    if (payload.rt !== undefined) dbPayload.rt = payload.rt.trim() || null;
+    if (payload.rw !== undefined) dbPayload.rw = payload.rw.trim() || null;
+    if (payload.dusun !== undefined) dbPayload.dusun = payload.dusun.trim() || null;
+    if (payload.alamat_lengkap !== undefined) dbPayload.alamat_lengkap = payload.alamat_lengkap.trim() || null;
+    if (payload.phone_number !== undefined) dbPayload.phone_number = payload.phone_number.trim() || null;
+
+    let updatedCitizen: Citizen | undefined;
+
+    try {
+      const { data, error } = await supabase
+        .from('citizens')
+        .update(dbPayload)
+        .eq('id', payload.id)
+        .select('*')
+        .single();
+
+      if (!error && data) {
+        const isVerified = !!data.is_verified;
+        const verifiedBy = data.verified_by || '';
+        const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+        const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+          ? 'verified'
+          : isRevision
+          ? 'needs_revision'
+          : 'pending';
+
+        updatedCitizen = {
+          id: data.id,
+          nik: data.nik,
+          no_kk: data.no_kk || '',
+          nama_lengkap: data.nama_lengkap,
+          jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || 'L',
+          status_keluarga: data.status_dalam_keluarga || '',
+          tanggal_lahir: data.tanggal_lahir || '',
+          pekerjaan: data.pekerjaan || '',
+          rt: data.rt || '',
+          rw: data.rw || '',
+          dusun: data.dusun || '',
+          is_verified: isVerified,
+          verified_by: verifiedBy,
+          foto_kk_path: data.foto_kk_path,
+          foto_ktp_path: data.foto_ktp_path,
+          foto_selfie_ktp_path: data.foto_selfie_ktp_path,
+          verification_status: verificationStatus,
+          rejection_reason: isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined,
+          alamat_lengkap: data.alamat_lengkap,
+          village_name: data.village_name,
+        };
+      } else if (error) {
+        console.warn('[Dekati Mobile] updateCitizenProfile Supabase error:', error);
+      }
+    } catch (err: any) {
+      console.warn('[Dekati Mobile] updateCitizenProfile exception:', err);
+    }
+
+    // Jika Supabase offline atau fallback lokal
+    if (!updatedCitizen) {
+      const fallbackMember = this.localFamilyMembers.find((m) => m.id === payload.id) ||
+        (this.currentCitizen.id === payload.id ? this.currentCitizen : undefined);
+
+      if (fallbackMember) {
+        updatedCitizen = {
+          ...fallbackMember,
+          nama_lengkap: payload.nama_lengkap !== undefined ? payload.nama_lengkap.trim() : fallbackMember.nama_lengkap,
+          no_kk: payload.no_kk !== undefined ? payload.no_kk.trim() : fallbackMember.no_kk,
+          status_keluarga: payload.status_keluarga !== undefined ? payload.status_keluarga.trim() : fallbackMember.status_keluarga,
+          jenis_kelamin: payload.jenis_kelamin !== undefined ? payload.jenis_kelamin : fallbackMember.jenis_kelamin,
+          tanggal_lahir: payload.tanggal_lahir !== undefined ? payload.tanggal_lahir.trim() : fallbackMember.tanggal_lahir,
+          pekerjaan: payload.pekerjaan !== undefined ? payload.pekerjaan.trim() : fallbackMember.pekerjaan,
+          rt: payload.rt !== undefined ? payload.rt.trim() : fallbackMember.rt,
+          rw: payload.rw !== undefined ? payload.rw.trim() : fallbackMember.rw,
+          dusun: payload.dusun !== undefined ? payload.dusun.trim() : fallbackMember.dusun,
+          alamat_lengkap: payload.alamat_lengkap !== undefined ? payload.alamat_lengkap.trim() : fallbackMember.alamat_lengkap,
+        };
+      }
+    }
+
+    if (updatedCitizen) {
+      // Sinkronkan ke akun aktif jika id sesuai
+      if (this.currentCitizen.id === updatedCitizen.id || this.currentCitizen.nik === updatedCitizen.nik) {
+        this.currentCitizen = { ...this.currentCitizen, ...updatedCitizen };
+        await auth.updateSessionCitizen(updatedCitizen);
+      }
+
+      // Sinkronkan ke list lokal jika ada
+      const lIdx = this.localFamilyMembers.findIndex((m) => m.id === updatedCitizen!.id);
+      if (lIdx !== -1) {
+        this.localFamilyMembers[lIdx] = updatedCitizen;
+      }
+
+      return { success: true, data: updatedCitizen };
+    }
+
+    return { success: false, message: 'Gagal memperbarui profil di database.' };
   }
 
   // ==========================================
@@ -648,7 +891,7 @@ class ApiService {
           applicant_phone: '081234567890',
           citizen_name: selectedCitizen.nama_lengkap,
           citizen_nik: selectedCitizen.nik,
-          citizen_address: `Kp. Sukamaju RT ${selectedCitizen.rt || '02'} / RW ${selectedCitizen.rw || '01'}, ${selectedCitizen.dusun || 'Dusun Mekar'}`,
+          citizen_address: selectedCitizen.alamat_lengkap || `RT ${selectedCitizen.rt || '01'} / RW ${selectedCitizen.rw || '01'}, ${Config.villageName}`,
           status: 'submitted',
           purpose: payload.purpose,
           timeline: timelineData,
@@ -732,7 +975,7 @@ class ApiService {
             category: d.category,
             title: d.title,
             description: d.description,
-            location: d.location_address || d.location || 'Desa Sukamaju',
+            location: d.location_address || d.location || Config.villageName,
             reporter_name: d.is_anonymous ? 'Warga Desa (Anonim)' : d.reporter_name,
             is_anonymous: !!d.is_anonymous,
             status: d.status,
@@ -1004,6 +1247,45 @@ class ApiService {
       console.warn('[Dekati Mobile] Supabase getVillageEvents fallback.', err);
     }
     return mockVillageEvents;
+  }
+
+  // ==========================================
+  // 6. Profil & Identitas Desa Cloud
+  // ==========================================
+  async getVillageProfile(): Promise<VillageProfile | null> {
+    try {
+      const { data, error } = await supabase
+        .from('village_profiles')
+        .select('*')
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) {
+        if (data.name) {
+          Config.villageName = data.name;
+        }
+        try {
+          await AsyncStorage.setItem('@dekatip_village_profile', JSON.stringify(data));
+        } catch {}
+        return data as VillageProfile;
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] Supabase getVillageProfile fallback to cache.', err);
+    }
+
+    try {
+      const cached = await AsyncStorage.getItem('@dekatip_village_profile');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.name) {
+          Config.villageName = parsed.name;
+        }
+        return parsed as VillageProfile;
+      }
+    } catch {}
+
+    return null;
   }
 }
 

@@ -23,9 +23,11 @@ import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Header } from '@/components/common/Header';
 import { LetterType, Citizen } from '@/store/mockData';
+import { useAlert } from '@/context/AlertContext';
 
 export default function CreateLetterScreen() {
   const router = useRouter();
+  const { showAlert, showPhotoPicker } = useAlert();
   const params = useLocalSearchParams() as { typeId?: string };
   const [types, setTypes] = useState<LetterType[]>([]);
   const [selectedTypeId, setSelectedTypeId] = useState<number>(Number(params.typeId) || 1);
@@ -77,10 +79,11 @@ export default function CreateLetterScreen() {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert(
-            'Izin Kamera Diperlukan',
-            'Mohon berikan izin akses kamera pada pengaturan perangkat untuk memotret dokumen persyaratan.'
-          );
+          showAlert({
+            title: 'Izin Kamera Diperlukan',
+            message: 'Mohon berikan izin akses kamera pada pengaturan perangkat untuk memotret dokumen persyaratan.',
+            type: 'warning',
+          });
           return;
         }
 
@@ -115,7 +118,11 @@ export default function CreateLetterScreen() {
         }
       }
     } catch (e) {
-      Alert.alert('Gagal Mengambil Berkas', 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.');
+      showAlert({
+        title: 'Gagal Mengambil Berkas',
+        message: 'Terjadi kendala saat mengakses kamera atau penyimpanan perangkat.',
+        type: 'danger',
+      });
     }
   };
 
@@ -125,24 +132,12 @@ export default function CreateLetterScreen() {
       return;
     }
 
-    Alert.alert(
-      `Lampirkan ${docName}`,
-      'Pilih sumber dokumen persyaratan surat:',
-      [
-        {
-          text: 'Ambil Foto (Kamera)',
-          onPress: () => openDocPicker(docName, 'camera'),
-        },
-        {
-          text: 'Cari File / Galeri (Storage HP)',
-          onPress: () => openDocPicker(docName, 'gallery'),
-        },
-        {
-          text: 'Batal',
-          style: 'cancel',
-        },
-      ]
-    );
+    showPhotoPicker({
+      title: `Lampirkan ${docName}`,
+      description: 'Pilih metode pengambilan berkas dokumen persyaratan surat:',
+      onSelectCamera: () => openDocPicker(docName, 'camera'),
+      onSelectGallery: () => openDocPicker(docName, 'gallery'),
+    });
   };
 
   const handleRemoveDocument = (docName: string) => {
@@ -160,7 +155,11 @@ export default function CreateLetterScreen() {
 
   const handleSubmit = async () => {
     if (!purpose.trim()) {
-      Alert.alert('Perhatian', 'Mohon isi kolom keperluan pengajuan surat.');
+      showAlert({
+        title: 'Perhatian',
+        message: 'Mohon isi kolom keperluan pengajuan surat.',
+        type: 'warning',
+      });
       return;
     }
 
@@ -181,18 +180,19 @@ export default function CreateLetterScreen() {
         attachments: formattedAttachments,
       });
 
-      Alert.alert(
-        'Permohonan Berhasil Dikirim',
-        `Nomor pelacakan Anda: ${res.tracking_number}. Operator desa akan segera memproses dokumen Anda.`,
-        [
-          {
-            text: 'Lacak Status Surat',
-            onPress: () => router.replace(`/letters/${res.tracking_number}` as any),
-          },
-        ]
-      );
+      showAlert({
+        title: 'Permohonan Berhasil Dikirim',
+        message: `Nomor pelacakan Anda: ${res.tracking_number}. Operator desa akan segera memproses dokumen Anda.`,
+        type: 'success',
+        confirmText: 'Lacak Status Surat',
+        onConfirm: () => router.replace(`/letters/${res.tracking_number}` as any),
+      });
     } catch (err) {
-      Alert.alert('Gagal', 'Terjadi kesalahan saat mengirim permohonan.');
+      showAlert({
+        title: 'Gagal',
+        message: 'Terjadi kesalahan saat mengirim permohonan.',
+        type: 'danger',
+      });
     } finally {
       setSubmitting(false);
     }

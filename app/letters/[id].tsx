@@ -22,9 +22,11 @@ import { supabase } from '@/services/supabase';
 import { Header } from '@/components/common/Header';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LetterRequest } from '@/store/mockData';
+import { useAlert } from '@/context/AlertContext';
 
 export default function LetterDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { showAlert } = useAlert();
   const [request, setRequest] = useState<LetterRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -86,10 +88,12 @@ export default function LetterDetailScreen() {
   const isCompleted = request.status === 'signed' || request.status === 'completed';
 
   const handleDownload = () => {
-    Alert.alert(
-      'Unduh Surat PDF',
-      `Surat resmi "${request.letter_name}" dengan Nomor ${request.official_number || 'Registrasi'} berhasil diunduh ke penyimpanan ponsel Anda.`
-    );
+    showAlert({
+      title: 'Unduh Surat PDF',
+      message: `Surat resmi "${request.letter_name}" dengan Nomor ${request.official_number || 'Registrasi'} berhasil diunduh ke penyimpanan ponsel Anda.`,
+      type: 'success',
+      confirmText: 'Buka Dokumen',
+    });
   };
 
   const handleShareWa = () => {

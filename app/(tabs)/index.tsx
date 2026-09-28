@@ -32,7 +32,7 @@ const seenUrgentAnnouncementIds = new Set<string>();
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user: authUser } = useAuth();
+  const { user: authUser, villageName } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<Citizen | null>(authUser);
   const [latestLetter, setLatestLetter] = useState<LetterRequest | null>(null);
@@ -205,7 +205,7 @@ export default function HomeScreen() {
               Halo, {user ? user.nama_lengkap.split(' ')[0] : 'Warga'} 👋
             </Text>
             <Text style={styles.appBarSubtitle} numberOfLines={1}>
-              {Config.villageName} • RT {user?.rt || '02'}/RW {user?.rw || '01'}
+              {user?.village_name || villageName || Config.villageName} • RT {user?.rt || '01'}/RW {user?.rw || '01'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -643,7 +643,7 @@ export default function HomeScreen() {
                 </View>
                 <View>
                   <Text style={styles.modalTitle}>Kontak Siaga 24 Jam</Text>
-                  <Text style={styles.modalSubtitle}>{Config.villageName}</Text>
+                  <Text style={styles.modalSubtitle}>{user?.village_name || villageName || Config.villageName}</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -706,19 +706,25 @@ export default function HomeScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleRow}>
+            {/* Tombol Tutup (X) di Pojok Kanan Atas */}
+            <TouchableOpacity
+              style={styles.eventModalCloseBtn}
+              onPress={() => setShowEventModal(false)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="close" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+
+            <View style={[styles.modalHeader, { paddingRight: 36 }]}>
+              <View style={[styles.modalTitleRow, { flex: 1 }]}>
                 <View style={[styles.modalIconBox, { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }]}>
                   <Ionicons name="calendar" size={20} color={Colors.purple} />
                 </View>
-                <View style={{ flex: 1, marginRight: 8 }}>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle} numberOfLines={1}>Agenda Resmi Desa</Text>
                   <Text style={styles.modalSubtitle}>{selectedEvent?.category || 'Kegiatan Warga'}</Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => setShowEventModal(false)}>
-                <Ionicons name="close-circle-outline" size={26} color={Colors.textMuted} />
-              </TouchableOpacity>
             </View>
 
             {selectedEvent && (
@@ -757,10 +763,10 @@ export default function HomeScreen() {
                 ) : null}
 
                 <TouchableOpacity
-                  style={[styles.modalCloseButton, { backgroundColor: Colors.purple }]}
+                  style={[styles.modalCloseButton, { backgroundColor: Colors.purple, borderColor: Colors.purple }]}
                   onPress={() => setShowEventModal(false)}
                 >
-                  <Text style={styles.modalCloseText}>Tutup Informasi</Text>
+                  <Text style={[styles.modalCloseText, { color: '#FFFFFF' }]}>Tutup Informasi</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1757,6 +1763,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 5,
+    position: 'relative',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1845,6 +1852,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: Colors.textSecondary,
+  },
+  eventModalCloseBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
 
   // URGENT ANNOUNCEMENT MODAL STYLES

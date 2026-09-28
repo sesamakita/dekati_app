@@ -24,6 +24,7 @@ import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Header } from '@/components/common/Header';
 import { LocationPickerModal } from '@/components/common/LocationPickerModal';
+import { useAlert } from '@/context/AlertContext';
 
 const CATEGORIES = [
   'Jalan Rusak / Berlubang',
@@ -41,6 +42,7 @@ interface EvidencePhoto {
 
 export default function CreateComplaintScreen() {
   const router = useRouter();
+  const { showAlert, showPhotoPicker } = useAlert();
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -63,7 +65,11 @@ export default function CreateComplaintScreen() {
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Izin Kamera Diperlukan', 'Mohon izinkan akses kamera untuk memotret bukti aduan.');
+          showAlert({
+            title: 'Izin Kamera Diperlukan',
+            message: 'Mohon izinkan akses kamera untuk memotret bukti aduan.',
+            type: 'warning',
+          });
           return;
         }
         result = await ImagePicker.launchCameraAsync({
@@ -98,7 +104,11 @@ export default function CreateComplaintScreen() {
         } else {
           setPhotos((prev) => {
             if (prev.length >= 3) {
-              Alert.alert('Batas Maksimal', 'Anda hanya dapat melampirkan maksimal 3 foto bukti.');
+              showAlert({
+                title: 'Batas Maksimal',
+                message: 'Anda hanya dapat melampirkan maksimal 3 foto bukti.',
+                type: 'info',
+              });
               return prev;
             }
             return [...prev, newPhoto];
@@ -106,7 +116,11 @@ export default function CreateComplaintScreen() {
         }
       }
     } catch (e) {
-      Alert.alert('Gagal Mengambil Foto', 'Terjadi kendala saat mengakses kamera atau galeri.');
+      showAlert({
+        title: 'Gagal Mengambil Foto',
+        message: 'Terjadi kendala saat mengakses kamera atau galeri perangkat.',
+        type: 'danger',
+      });
     }
   };
 
@@ -116,24 +130,12 @@ export default function CreateComplaintScreen() {
       return;
     }
 
-    Alert.alert(
-      typeof targetIndex === 'number' ? 'Ganti Foto Bukti' : 'Pilih Sumber Foto Aduan',
-      'Pilih cara mengambil foto kondisi fasilitas yang dilaporkan:',
-      [
-        {
-          text: 'Ambil Foto (Kamera)',
-          onPress: () => openImagePicker('camera', targetIndex),
-        },
-        {
-          text: 'Cari File / Galeri (Storage HP)',
-          onPress: () => openImagePicker('gallery', targetIndex),
-        },
-        {
-          text: 'Batal',
-          style: 'cancel',
-        },
-      ]
-    );
+    showPhotoPicker({
+      title: typeof targetIndex === 'number' ? 'Ganti Foto Bukti' : 'Lampirkan Foto Bukti Aduan',
+      description: 'Pilih cara mengambil foto kondisi fasilitas yang dilaporkan:',
+      onSelectCamera: () => openImagePicker('camera', targetIndex),
+      onSelectGallery: () => openImagePicker('gallery', targetIndex),
+    });
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -149,7 +151,11 @@ export default function CreateComplaintScreen() {
 
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
-      Alert.alert('Perhatian', 'Mohon isi judul dan rincian keterangan aduan.');
+      showAlert({
+        title: 'Perhatian',
+        message: 'Mohon isi judul dan rincian keterangan aduan.',
+        type: 'warning',
+      });
       return;
     }
 
@@ -171,18 +177,19 @@ export default function CreateComplaintScreen() {
         longitude: useGps ? coords.longitude : undefined,
       } as any);
 
-      Alert.alert(
-        'Laporan Berhasil Terkirim',
-        `Nomor Tiket Aduan Anda: ${res.ticket_number}. Laporan telah diteruskan ke aparatur terkait dan dipantau oleh Kepala ${Config.villageName}.`,
-        [
-          {
-            text: 'Lihat di Feed Aduan',
-            onPress: () => router.replace('/(tabs)/aduan'),
-          },
-        ]
-      );
+      showAlert({
+        title: 'Laporan Berhasil Terkirim',
+        message: `Nomor Tiket Aduan Anda: ${res.ticket_number}. Laporan telah diteruskan ke aparatur terkait dan dipantau oleh Kepala ${Config.villageName}.`,
+        type: 'success',
+        confirmText: 'Lihat di Feed Aduan',
+        onConfirm: () => router.replace('/(tabs)/aduan'),
+      });
     } catch (err) {
-      Alert.alert('Gagal', 'Terjadi kesalahan saat mengirim aduan.');
+      showAlert({
+        title: 'Gagal',
+        message: 'Terjadi kesalahan saat mengirim aduan.',
+        type: 'danger',
+      });
     } finally {
       setSubmitting(false);
     }

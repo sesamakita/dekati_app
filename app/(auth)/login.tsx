@@ -20,10 +20,12 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
+import { useAlert } from '@/context/AlertContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, villageName } = useAuth();
+  const { showAlert } = useAlert();
   const [identifier, setIdentifier] = useState('3201012345670001');
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +33,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
-      Alert.alert('Perhatian', 'Mohon masukkan NIK/Nomor WhatsApp dan Kata Sandi.');
+      showAlert({
+        title: 'Perhatian',
+        message: 'Mohon masukkan NIK/Nomor WhatsApp dan Kata Sandi.',
+        type: 'warning',
+      });
       return;
     }
 
@@ -40,7 +46,11 @@ export default function LoginScreen() {
       await login(identifier.trim(), password.trim());
       router.replace('/(tabs)');
     } catch (err: any) {
-      Alert.alert('Gagal Masuk', err?.message || 'NIK atau Kata Sandi tidak sesuai.');
+      showAlert({
+        title: 'Gagal Masuk',
+        message: err?.message || 'NIK atau Kata Sandi tidak sesuai.',
+        type: 'danger',
+      });
     } finally {
       setLoading(false);
     }
@@ -64,7 +74,7 @@ export default function LoginScreen() {
             <Text style={styles.appName}>DEKATI</Text>
             <Text style={styles.appTagline}>Desa Kita Dekat di Hati</Text>
             <View style={styles.villageTag}>
-              <Text style={styles.villageText}>Portal Warga {Config.villageName}</Text>
+              <Text style={styles.villageText}>Portal Warga {villageName || Config.villageName}</Text>
             </View>
           </View>
 

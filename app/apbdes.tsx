@@ -16,8 +16,10 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Header } from '@/components/common/Header';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ApbdesScreen() {
+  const { villageName, user } = useAuth();
   const [apbdes, setApbdes] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'pendapatan' | 'belanja'>('belanja');
 
@@ -55,7 +57,7 @@ export default function ApbdesScreen() {
             <Text style={styles.heroYearBadge}>Transparan & Terbuka</Text>
           </View>
 
-          <Text style={styles.heroTitle}>{Config.villageName}</Text>
+          <Text style={styles.heroTitle}>{user?.village_name || villageName || Config.villageName}</Text>
           <Text style={styles.heroDesc}>
             Publikasi pertanggungjawaban pengelolaan keuangan desa sesuai amanat UU Desa No. 6 Tahun 2014.
           </Text>

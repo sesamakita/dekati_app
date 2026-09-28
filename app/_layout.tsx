@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/nunito';
 import { Colors } from '@/constants/Colors';
 import { AuthProvider } from '@/context/AuthContext';
+import { AlertProvider } from '@/context/AlertContext';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -35,23 +36,25 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: Colors.background },
-          animation: 'slide_from_right',
-        }}
-      >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="letters/create" options={{ presentation: 'card' }} />
-        <Stack.Screen name="letters/[id]" options={{ presentation: 'card' }} />
-        <Stack.Screen name="complaints/create" options={{ presentation: 'card' }} />
-        <Stack.Screen name="complaints/[id]" options={{ presentation: 'card' }} />
-        <Stack.Screen name="apbdes" options={{ presentation: 'card' }} />
-      </Stack>
+      <AlertProvider>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: Colors.background },
+            animation: 'slide_from_right',
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="letters/create" options={{ presentation: 'card' }} />
+          <Stack.Screen name="letters/[id]" options={{ presentation: 'card' }} />
+          <Stack.Screen name="complaints/create" options={{ presentation: 'card' }} />
+          <Stack.Screen name="complaints/[id]" options={{ presentation: 'card' }} />
+          <Stack.Screen name="apbdes" options={{ presentation: 'card' }} />
+        </Stack>
+      </AlertProvider>
     </AuthProvider>
   );
 }

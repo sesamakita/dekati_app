@@ -16,6 +16,7 @@ import * as Location from 'expo-location';
 import { Colors } from '@/constants/Colors';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
+import { useAlert } from '@/context/AlertContext';
 
 const RNWebView: any = WebView;
 
@@ -40,6 +41,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   initialLongitude = 106.8456,
   initialAddress = '',
 }) => {
+  const { showAlert } = useAlert();
   const [currentLat, setCurrentLat] = useState(initialLatitude);
   const [currentLng, setCurrentLng] = useState(initialLongitude);
   const [address, setAddress] = useState(initialAddress || 'Memuat titik lokasi...');
@@ -101,10 +103,11 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Izin GPS Dibutuhkan',
-          'Mohon izinkan akses lokasi perangkat untuk mendeteksi koordinat GPS secara otomatis.'
-        );
+        showAlert({
+          title: 'Izin GPS Dibutuhkan',
+          message: 'Mohon izinkan akses lokasi perangkat untuk mendeteksi titik koordinat GPS secara otomatis.',
+          type: 'warning',
+        });
         return;
       }
 
@@ -126,7 +129,11 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
       performReverseGeocode(latitude, longitude);
     } catch (err) {
-      Alert.alert('Gagal Mendeteksi GPS', 'Pastikan GPS perangkat Anda telah aktif.');
+      showAlert({
+        title: 'Gagal Mendeteksi GPS',
+        message: 'Pastikan sensor GPS pada perangkat Anda telah aktif dan dapat menjangkau sinyal satelit.',
+        type: 'danger',
+      });
     } finally {
       setLoadingGps(false);
     }

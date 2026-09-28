@@ -38,6 +38,12 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Aplikasi Dekati membutuhkan izin lokasi untuk mendeteksi koordinat titik fasilitas umum yang Anda laporkan."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aplikasi Dekati membutuhkan izin kamera untuk memindai QR Code pendaftaran desa dan mengambil foto fisik KTP."
+        }
       ]
     ],
     "experiments": {

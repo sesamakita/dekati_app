@@ -15,11 +15,33 @@ export interface Citizen {
   is_verified: boolean;
   verified_by?: string;
   foto_kk_path?: string;
+  foto_ktp_path?: string;
+  foto_selfie_ktp_path?: string;
   verification_status?: 'verified' | 'pending' | 'needs_revision';
   rejection_reason?: string;
   document_type?: string;
   no_telepon?: string;
   phone?: string;
+  alamat_lengkap?: string;
+  village_name?: string;
+  village_code?: string;
+}
+
+export interface VillageProfile {
+  id: number;
+  name: string;
+  code?: string;
+  district?: string;
+  regency?: string;
+  province?: string;
+  postal_code?: string;
+  office_address?: string;
+  office_phone?: string;
+  office_email?: string;
+  kades_name?: string;
+  sekdes_name?: string;
+  vision?: string;
+  mission?: string[];
 }
 
 export interface LetterType {
@@ -118,9 +140,9 @@ export const mockUser: Citizen = {
   id: '',
   nik: '',
   no_kk: '',
-  nama_lengkap: 'Warga Desa',
+  nama_lengkap: '',
   jenis_kelamin: 'L',
-  status_keluarga: 'Kepala Keluarga',
+  status_keluarga: '',
   tanggal_lahir: '',
   pekerjaan: '',
   rt: '',

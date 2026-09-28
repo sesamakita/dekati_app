@@ -22,6 +22,11 @@ export interface RegisterParams {
   rt?: string;
   rw?: string;
   dusun?: string;
+  village_code?: string;
+  village_name?: string;
+  district?: string;
+  regency?: string;
+  province?: string;
 }
 
 /**
@@ -206,20 +211,49 @@ export const auth = {
       throw new Error('Kata sandi yang Anda masukkan salah. Silakan coba lagi.');
     }
 
+    // Ekstrak nama desa dari database atau alamat warga
+    const rawAddr = citizenRow.alamat_lengkap || '';
+    const matchVil = rawAddr.match(/(Desa\s+[^\,\.]+)|(Kelurahan\s+[^\,\.]+)/i);
+    const extractedVillage = citizenRow.village_name || (matchVil ? matchVil[0].trim() : null);
+
+    if (extractedVillage) {
+      Config.villageName = extractedVillage;
+    }
+
+    // Status Verifikasi Akun dari Operator Desa
+    const isVerified = !!citizenRow.is_verified;
+    const verifiedBy = citizenRow.verified_by || '';
+    const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+    const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+      ? 'verified'
+      : isRevision
+      ? 'needs_revision'
+      : 'pending';
+    const rejectionReason = isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined;
+
     // Bangun model Citizen
     const citizen: Citizen = {
       id: citizenRow.id,
       nik: citizenRow.nik,
-      no_kk: citizenRow.no_kk,
+      no_kk: citizenRow.no_kk || '',
       nama_lengkap: citizenRow.nama_lengkap,
       jenis_kelamin: citizenRow.jenis_kelamin || 'L',
-      status_keluarga: citizenRow.status_dalam_keluarga || 'Kepala Keluarga',
-      tanggal_lahir: citizenRow.tanggal_lahir || '1985-01-01',
-      pekerjaan: citizenRow.pekerjaan || 'Warga Desa',
-      rt: citizenRow.rt || '01',
-      rw: citizenRow.rw || '01',
-      dusun: citizenRow.dusun || 'Dusun Krajan',
-      is_verified: !!citizenRow.is_verified,
+      status_keluarga: citizenRow.status_dalam_keluarga || '',
+      tanggal_lahir: citizenRow.tanggal_lahir || '',
+      pekerjaan: citizenRow.pekerjaan || '',
+      rt: citizenRow.rt || '',
+      rw: citizenRow.rw || '',
+      dusun: citizenRow.dusun || '',
+      is_verified: isVerified,
+      verified_by: verifiedBy,
+      foto_kk_path: citizenRow.foto_kk_path || undefined,
+      foto_ktp_path: citizenRow.foto_ktp_path || undefined,
+      foto_selfie_ktp_path: citizenRow.foto_selfie_ktp_path || undefined,
+      verification_status: verificationStatus,
+      rejection_reason: rejectionReason,
+      alamat_lengkap: citizenRow.alamat_lengkap || undefined,
+      village_name: citizenRow.village_name || extractedVillage || undefined,
+      village_code: citizenRow.village_code || undefined,
     };
 
     const session: CitizenSession = {
@@ -247,7 +281,7 @@ export const auth = {
     const cleanNik = params.nik.trim();
     const cleanNama = params.nama.trim();
     const cleanPhone = params.phone.trim();
-    const cleanKk = (params.no_kk || cleanNik.slice(0, 12) + '0000').trim();
+    const cleanKk = (params.no_kk || '').trim();
     const cleanPass = params.password.trim();
 
     if (!cleanNik || !cleanNama || !cleanPhone || !cleanPass) {
@@ -261,6 +295,17 @@ export const auth = {
     if (cleanPass.length < 6) {
       throw new Error('Kata sandi minimal terdiri dari 6 karakter.');
     }
+
+    const vName = params.village_name || Config.villageName;
+    const vDist = params.district ? `, Kec. ${params.district}` : '';
+    const vReg = params.regency ? `, ${params.regency}` : '';
+    const dynamicAddress = params.alamat || `Desa ${vName}${vDist}${vReg}`;
+
+    const registeredVillage = params.village_name
+      ? (params.village_name.toLowerCase().startsWith('desa') || params.village_name.toLowerCase().startsWith('kelurahan')
+          ? params.village_name
+          : `Desa ${params.village_name}`)
+      : Config.villageName;
 
     const hashed = sha256(cleanPass);
     let createdOrUpdatedRow: any = null;
@@ -307,19 +352,27 @@ export const auth = {
         }
       } else {
         // 2. Warga baru yang belum tercatat di sensus -> Insert data baru
-        const insertPayload: any = {
+        const cleanVillageCode = params.village_code?.trim() || null;
+        const cleanVillageName = registeredVillage || null;
+
+        const baseInsert: any = {
           nik: cleanNik,
-          no_kk: cleanKk,
+          no_kk: cleanKk || null,
           nama_lengkap: cleanNama,
           phone_number: cleanPhone,
-          alamat_lengkap: params.alamat || `Kp. Sukamaju, Desa ${Config.villageName}`,
-          rt: params.rt || '01',
-          rw: params.rw || '01',
-          dusun: params.dusun || 'Dusun Mekar',
-          status_dalam_keluarga: 'Kepala Keluarga',
+          alamat_lengkap: dynamicAddress,
+          rt: params.rt?.trim() || null,
+          rw: params.rw?.trim() || null,
+          dusun: params.dusun?.trim() || null,
+          status_dalam_keluarga: null,
+          pekerjaan: null,
           is_verified: false,
           verified_by: 'pwd:' + hashed,
         };
+
+        const insertPayload: any = cleanVillageCode
+          ? { ...baseInsert, village_code: cleanVillageCode, village_name: cleanVillageName }
+          : baseInsert;
 
         try {
           const { data: inserted, error: insErr } = await supabase
@@ -331,10 +384,10 @@ export const auth = {
           if (!insErr && inserted) {
             createdOrUpdatedRow = inserted;
           } else {
-            // Coba tanpa kolom password_hash
+            // Coba tanpa kolom password_hash atau village_code jika belum ada di skema
             const { data: fallbackIns, error: fErr } = await supabase
               .from('citizens')
-              .insert([insertPayload])
+              .insert([baseInsert])
               .select()
               .single();
 
@@ -351,20 +404,30 @@ export const auth = {
       console.warn('[Auth] Terjadi kendala pendaftaran online, fallback lokal:', e);
     }
 
+    // Pastikan nama desa tersimpan & terkonfigurasi
+    Config.villageName = registeredVillage;
+
     // Bangun model Citizen dari data yang berhasil dibuat/diupdate
     const citizen: Citizen = {
       id: createdOrUpdatedRow?.id || 'citizen_' + cleanNik,
       nik: cleanNik,
-      no_kk: cleanKk,
+      no_kk: createdOrUpdatedRow?.no_kk || cleanKk || '',
       nama_lengkap: cleanNama,
-      jenis_kelamin: 'L',
-      status_keluarga: createdOrUpdatedRow?.status_dalam_keluarga || 'Kepala Keluarga',
-      tanggal_lahir: createdOrUpdatedRow?.tanggal_lahir || '1995-01-01',
-      pekerjaan: createdOrUpdatedRow?.pekerjaan || 'Warga Desa',
-      rt: createdOrUpdatedRow?.rt || '01',
-      rw: createdOrUpdatedRow?.rw || '01',
-      dusun: createdOrUpdatedRow?.dusun || 'Dusun Mekar',
+      jenis_kelamin: (createdOrUpdatedRow?.jenis_kelamin as 'L' | 'P') || 'L',
+      status_keluarga: createdOrUpdatedRow?.status_dalam_keluarga || '',
+      tanggal_lahir: createdOrUpdatedRow?.tanggal_lahir || '',
+      pekerjaan: createdOrUpdatedRow?.pekerjaan || '',
+      rt: createdOrUpdatedRow?.rt || params.rt || '',
+      rw: createdOrUpdatedRow?.rw || params.rw || '',
+      dusun: createdOrUpdatedRow?.dusun || params.dusun || '',
       is_verified: !!createdOrUpdatedRow?.is_verified,
+      foto_kk_path: createdOrUpdatedRow?.foto_kk_path || undefined,
+      foto_ktp_path: createdOrUpdatedRow?.foto_ktp_path || undefined,
+      foto_selfie_ktp_path: createdOrUpdatedRow?.foto_selfie_ktp_path || undefined,
+      verification_status: createdOrUpdatedRow?.is_verified ? 'verified' : 'pending',
+      alamat_lengkap: createdOrUpdatedRow?.alamat_lengkap || dynamicAddress,
+      village_name: createdOrUpdatedRow?.village_name || registeredVillage,
+      village_code: createdOrUpdatedRow?.village_code || params.village_code || undefined,
     };
 
     const session: CitizenSession = {
@@ -383,6 +446,31 @@ export const auth = {
     }
 
     return session;
+  },
+
+  /**
+   * Memperbarui data warga pada sesi aktif & penyimpanan lokal
+   */
+  async updateSessionCitizen(updatedData: Partial<Citizen>): Promise<Citizen | null> {
+    if (!currentActiveCitizen && !inMemorySession) {
+      await this.getStoredSession();
+    }
+    const base = inMemorySession?.citizen || currentActiveCitizen;
+    if (!base) return null;
+
+    const merged: Citizen = { ...base, ...updatedData };
+    currentActiveCitizen = merged;
+
+    if (inMemorySession) {
+      inMemorySession.citizen = merged;
+      try {
+        await AsyncStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(inMemorySession));
+      } catch (e) {
+        console.warn('[Auth] Gagal simpan pembaruan sesi ke storage:', e);
+      }
+    }
+
+    return merged;
   },
 
   /**
