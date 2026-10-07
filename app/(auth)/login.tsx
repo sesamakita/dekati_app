@@ -136,11 +136,23 @@ export default function LoginScreen() {
               <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
 
+            {/* GUEST ACCESS */}
+            <TouchableOpacity
+              style={styles.guestBtn}
+              activeOpacity={0.85}
+              onPress={() => router.replace('/(tabs)')}
+            >
+              <Text style={styles.guestBtnText}>Masuk sebagai Tamu / Mode Eksplorasi</Text>
+            </TouchableOpacity>
+
           </View>
 
           {/* REGISTER FOOTER */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Belum memiliki akses? Hubungi administrator desa untuk verifikasi akun.</Text>
+            <Text style={styles.footerText}>Belum memiliki akun warga?</Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+              <Text style={styles.registerLink}> Daftar Akun Baru</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
