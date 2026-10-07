@@ -24,7 +24,7 @@ import { useAlert } from '@/context/AlertContext';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, villageName } = useAuth();
+  const { login, user, villageName } = useAuth();
   const { showAlert } = useAlert();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -74,7 +74,13 @@ export default function LoginScreen() {
             <Text style={styles.appName}>DEKATI</Text>
             <Text style={styles.appTagline}>Desa Kita Dekat di Hati</Text>
             <View style={styles.villageTag}>
-              <Text style={styles.villageText}>Portal Warga {villageName || Config.villageName}</Text>
+              <Text style={styles.villageText}>
+                {user?.village_name
+                  ? `Portal Warga ${user.village_name}`
+                  : villageName && villageName !== 'Pemerintah Desa'
+                    ? `Portal Warga ${villageName}`
+                    : 'Portal Layanan Warga Desa & Kelurahan'}
+              </Text>
             </View>
           </View>
 

@@ -30,7 +30,7 @@ import { useAlert } from '@/context/AlertContext';
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { register, villageName: contextVillageName } = useAuth();
+  const { register } = useAuth();
   const { showAlert } = useAlert();
   const [nik, setNik] = useState('');
   const [nama, setNama] = useState('');
@@ -403,7 +403,15 @@ export default function RegisterScreen() {
               <Ionicons name="information-circle" size={18} color={Colors.primary} />
             </View>
             <Text style={styles.infoBannerText}>
-              Pendaftaran dikhususkan bagi warga sah {villageName ? `Desa ${villageName}` : (contextVillageName || Config.villageName)}. NIK Anda akan diverifikasi langsung dengan Buku Induk Kependudukan desa.
+              {villageName ? (
+                <>
+                  Pendaftaran akun warga untuk <Text style={{ fontFamily: Fonts.bold }}>{villageName.toLowerCase().startsWith('desa') || villageName.toLowerCase().startsWith('kelurahan') ? villageName : `Desa/Kelurahan ${villageName}`}</Text>. NIK Anda akan diverifikasi sesuai data administrasi kependudukan desa.
+                </>
+              ) : (
+                <>
+                  Pendaftaran akun warga baru. Silakan lengkapi data diri dan <Text style={{ fontFamily: Fonts.bold }}>pilih atau scan kode Desa/Kelurahan</Text> domisili Anda di bawah ini.
+                </>
+              )}
             </Text>
           </View>
 

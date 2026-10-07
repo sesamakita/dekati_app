@@ -25,7 +25,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<CitizenSession | null>(null);
   const [user, setUser] = useState<Citizen | null>(null);
   const [villageProfile, setVillageProfile] = useState<VillageProfile | null>(null);
-  const [villageName, setVillageName] = useState<string>(Config.villageName);
+  const [villageName, setVillageName] = useState<string>(Config.villageName || '');
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchVillageData = async () => {
@@ -33,7 +33,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const prof = await api.getVillageProfile();
       if (prof) {
         setVillageProfile(prof);
-        if (prof.name) {
+        // Hanya override villageName jika ada config eksplisit satu desa
+        if (prof.name && Config.villageName) {
           setVillageName(prof.name);
         }
       }
@@ -130,6 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await auth.logoutCitizen();
       setSession(null);
       setUser(null);
+      setVillageName(Config.villageName || '');
     } finally {
       setIsLoading(false);
     }

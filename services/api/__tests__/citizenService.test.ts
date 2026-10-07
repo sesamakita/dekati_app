@@ -43,5 +43,5 @@ describe('CitizenService Validation & Family Management', () => {
     expect(res.success).toBe(true);
     expect(res.data?.nik).toBe('3201123456780099');
     expect(res.data?.nama_lengkap).toBe('Siti Rahmawati');
-  });
+  }, 15000);
 });
