@@ -109,7 +109,8 @@ CREATE TABLE IF NOT EXISTS public.complaints (
     reporter_phone VARCHAR(20),
     is_anonymous BOOLEAN DEFAULT FALSE,
     status VARCHAR(30) NOT NULL DEFAULT 'submitted',   -- submitted, in_progress, resolved, rejected
-    photo_url TEXT,                                    -- Foto kerusakan lapangan
+    photo_url TEXT,                                    -- Foto kerusakan lapangan (kompatibilitas mundur)
+    photo_urls JSONB DEFAULT '[]'::jsonb,              -- Multi-foto bukti kerusakan lapangan
     resolution_proof TEXT,                             -- Foto bukti pengerjaan selesai
     resolution_notes TEXT,                             -- Catatan tindak lanjut aparat
     assigned_department VARCHAR(100),                  -- e.g. 'Seksi Pembangunan', 'Satlinmas'
@@ -183,7 +184,7 @@ CREATE TABLE IF NOT EXISTS public.village_profiles (
 
 -- ============================================================================
 -- 9. KEBIJAKAN ROW LEVEL SECURITY (RLS) & IZIN AKSES
--- Mengizinkan pembacaan & penulisan publik (Anon Key) untuk kedua aplikasi
+-- Fail closed for private data; public information is read-only.
 -- ============================================================================
 ALTER TABLE public.citizens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.letter_types ENABLE ROW LEVEL SECURITY;
@@ -192,6 +193,7 @@ ALTER TABLE public.complaints ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.apbdes_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.village_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.village_officials ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Public Anon All citizens" ON public.citizens;
@@ -201,15 +203,24 @@ DROP POLICY IF EXISTS "Public Anon All complaints" ON public.complaints;
 DROP POLICY IF EXISTS "Public Anon All announcements" ON public.announcements;
 DROP POLICY IF EXISTS "Public Anon All apbdes_items" ON public.apbdes_items;
 DROP POLICY IF EXISTS "Public Anon All village_profiles" ON public.village_profiles;
+DROP POLICY IF EXISTS "dekati_public_read_letter_types" ON public.letter_types;
+DROP POLICY IF EXISTS "dekati_public_read_announcements" ON public.announcements;
+DROP POLICY IF EXISTS "dekati_public_read_apbdes_items" ON public.apbdes_items;
+DROP POLICY IF EXISTS "dekati_public_read_village_profiles" ON public.village_profiles;
 
--- Create Open Anon Policies
-CREATE POLICY "Public Anon All citizens" ON public.citizens FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All letter_types" ON public.letter_types FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All letter_requests" ON public.letter_requests FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All complaints" ON public.complaints FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All announcements" ON public.announcements FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All apbdes_items" ON public.apbdes_items FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Anon All village_profiles" ON public.village_profiles FOR ALL USING (true) WITH CHECK (true);
+REVOKE ALL ON TABLE public.letter_types, public.announcements, public.apbdes_items, public.village_profiles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.letter_types, public.announcements, public.apbdes_items, public.village_profiles TO anon, authenticated;
+DROP POLICY IF EXISTS "dekati_public_read_letter_types" ON public.letter_types;
+DROP POLICY IF EXISTS "dekati_public_read_announcements" ON public.announcements;
+DROP POLICY IF EXISTS "dekati_public_read_apbdes_items" ON public.apbdes_items;
+DROP POLICY IF EXISTS "dekati_public_read_village_profiles" ON public.village_profiles;
+CREATE POLICY "dekati_public_read_letter_types" ON public.letter_types FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "dekati_public_read_announcements" ON public.announcements FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "dekati_public_read_apbdes_items" ON public.apbdes_items FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "dekati_public_read_village_profiles" ON public.village_profiles FOR SELECT TO anon, authenticated USING (true);
+
+REVOKE ALL ON TABLE public.citizens, public.letter_requests, public.complaints FROM PUBLIC, anon, authenticated;
+DROP POLICY IF EXISTS "Public Anon All village_officials" ON public.village_officials;
 
 -- ============================================================================
 -- 10. AKTIFKAN SUPABASE REALTIME
@@ -306,14 +317,15 @@ CREATE INDEX IF NOT EXISTS idx_village_officials_role ON public.village_official
 
 -- Tambah kolom otentikasi pada tabel warga (citizens) jika belum ada
 ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS password_hash TEXT;
-ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS pin_code VARCHAR(6) DEFAULT '123456';
+ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS pin_code VARCHAR(6);
 ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
 ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS device_token TEXT;
+ALTER TABLE public.citizens ALTER COLUMN pin_code DROP DEFAULT;
 
 -- RLS & Hak Akses
 ALTER TABLE public.village_officials ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Anon All village_officials" ON public.village_officials;
-CREATE POLICY "Public Anon All village_officials" ON public.village_officials FOR ALL USING (true) WITH CHECK (true);
+REVOKE ALL ON TABLE public.village_officials FROM PUBLIC, anon, authenticated;
 
 -- Realtime Publication
 ALTER PUBLICATION supabase_realtime ADD TABLE public.village_officials;
@@ -371,7 +383,10 @@ BEGIN
 END;
 $$;
 
--- B. Registrasi Aparat Desa Baru (Register)
+REVOKE EXECUTE ON FUNCTION public.authenticate_official(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.authenticate_official(TEXT, TEXT) TO anon, authenticated;
+
+-- B. Registrasi publik aparat dinonaktifkan sampai proses administratif terverifikasi.
 CREATE OR REPLACE FUNCTION public.register_official(
     p_nama TEXT,
     p_email TEXT,
@@ -392,45 +407,9 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_hash TEXT;
-    v_can_sign BOOLEAN;
-    v_new_id UUID;
 BEGIN
-    -- Hash password dengan bcrypt
-    v_hash := crypt(p_password, gen_salt('bf', 10));
-    v_can_sign := (p_role = 'kades' OR p_role = 'lurah');
-
-    INSERT INTO public.village_officials (
-        nama_lengkap,
-        email,
-        password_hash,
-        role,
-        nik,
-        village_code,
-        village_name,
-        phone_number,
-        can_sign_tte,
-        status
-    ) VALUES (
-        p_nama,
-        LOWER(p_email),
-        v_hash,
-        p_role,
-        p_nik,
-        p_village_code,
-        p_village_name,
-        p_phone,
-        v_can_sign,
-        'active'
-    ) RETURNING public.village_officials.id INTO v_new_id;
-
-    RETURN QUERY SELECT 
-        v_new_id,
-        p_nama::VARCHAR,
-        LOWER(p_email)::VARCHAR,
-        p_role::VARCHAR,
-        p_village_name::VARCHAR;
+    RAISE EXCEPTION 'Pendaftaran aparat publik dinonaktifkan; akun harus dibuat melalui proses administratif terverifikasi.'
+        USING ERRCODE = '42501';
 END;
 $$;
 
@@ -457,7 +436,8 @@ DECLARE
 BEGIN
     SELECT * INTO v_cit 
     FROM public.citizens 
-    WHERE public.citizens.nik = p_nik;
+    WHERE public.citizens.nik = p_nik
+      AND public.citizens.is_verified IS TRUE;
 
     IF NOT FOUND THEN
         RETURN;
@@ -466,17 +446,14 @@ BEGIN
     IF v_cit.password_hash IS NOT NULL AND v_cit.password_hash = crypt(p_password, v_cit.password_hash) THEN
         UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
         RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
-    ELSIF v_cit.pin_code IS NOT NULL AND v_cit.pin_code = p_password THEN
-        UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
-        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
-    ELSIF p_password = 'warga' OR p_password = '123' OR p_password = '123456' THEN
-        UPDATE public.citizens SET last_login_at = NOW() WHERE public.citizens.id = v_cit.id;
-        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.no_kk, v_cit.nama_lengkap, v_cit.is_verified, v_cit.rt, v_cit.rw, v_cit.dusun;
     END IF;
 END;
 $$;
 
--- D. Registrasi Akun Warga Baru (Mobile App)
+REVOKE EXECUTE ON FUNCTION public.authenticate_citizen(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.authenticate_citizen(TEXT, TEXT) TO anon, authenticated;
+
+-- D. Registrasi publik dinonaktifkan sampai verifikasi identitas berbasis server.
 CREATE OR REPLACE FUNCTION public.register_citizen(
     p_nik TEXT,
     p_nama TEXT,
@@ -497,57 +474,97 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-DECLARE
-    v_cit RECORD;
-    v_hash TEXT;
-    v_id UUID;
-    v_verified BOOLEAN;
 BEGIN
-    v_hash := crypt(p_password, gen_salt('bf', 10));
-
-    SELECT * INTO v_cit FROM public.citizens WHERE public.citizens.nik = p_nik;
-
-    IF FOUND THEN
-        -- Warga sudah ada di database kependudukan: aktifkan password & update data kontak
-        UPDATE public.citizens
-        SET password_hash = v_hash,
-            phone_number = COALESCE(p_phone, public.citizens.phone_number),
-            nama_lengkap = COALESCE(p_nama, public.citizens.nama_lengkap),
-            updated_at = NOW()
-        WHERE public.citizens.id = v_cit.id;
-
-        RETURN QUERY SELECT v_cit.id, v_cit.nik, v_cit.nama_lengkap, v_cit.is_verified;
-    ELSE
-        -- Warga baru mendaftar
-        INSERT INTO public.citizens (
-            nik,
-            no_kk,
-            nama_lengkap,
-            phone_number,
-            password_hash,
-            alamat_lengkap,
-            rt,
-            rw,
-            dusun,
-            is_verified
-        ) VALUES (
-            p_nik,
-            COALESCE(p_no_kk, '3201010000000001'),
-            p_nama,
-            p_phone,
-            v_hash,
-            COALESCE(p_alamat, 'Desa Sukamaju'),
-            COALESCE(p_rt, '01'),
-            COALESCE(p_rw, '01'),
-            COALESCE(p_dusun, 'Dusun Mekar'),
-            false
-        )
-        RETURNING public.citizens.id, public.citizens.is_verified INTO v_id, v_verified;
-
-        RETURN QUERY SELECT v_id, p_nik::VARCHAR, p_nama::VARCHAR, v_verified;
-    END IF;
+    RAISE EXCEPTION 'Pendaftaran warga publik dinonaktifkan sampai verifikasi identitas berbasis server tersedia.'
+        USING ERRCODE = '42501';
 END;
 $$;
+
+REVOKE EXECUTE ON FUNCTION public.register_official(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.register_citizen(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+
+-- D2. Registrasi Warga Aman dengan Hash Bcrypt (Mobile App)
+CREATE OR REPLACE FUNCTION public.register_citizen_secure(
+    p_nik TEXT,
+    p_nama TEXT,
+    p_phone TEXT,
+    p_password TEXT,
+    p_no_kk TEXT DEFAULT NULL,
+    p_alamat TEXT DEFAULT NULL,
+    p_rt TEXT DEFAULT NULL,
+    p_rw TEXT DEFAULT NULL,
+    p_dusun TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    id UUID,
+    nik VARCHAR,
+    nama_lengkap VARCHAR,
+    is_verified BOOLEAN
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_new_id UUID;
+    v_clean_nik TEXT;
+    v_clean_nama TEXT;
+BEGIN
+    v_clean_nik := TRIM(p_nik);
+    v_clean_nama := TRIM(p_nama);
+
+    IF LENGTH(v_clean_nik) != 16 OR v_clean_nik !~ '^\d+$' THEN
+        RAISE EXCEPTION 'NIK harus tepat 16 digit angka sesuai KTP.' USING ERRCODE = '22023';
+    END IF;
+
+    IF LENGTH(v_clean_nama) = 0 THEN
+        RAISE EXCEPTION 'Nama lengkap wajib diisi.' USING ERRCODE = '22023';
+    END IF;
+
+    IF LENGTH(COALESCE(p_password, '')) < 6 THEN
+        RAISE EXCEPTION 'Kata sandi minimal 6 karakter demi keamanan akun Anda.' USING ERRCODE = '22023';
+    END IF;
+
+    -- Cek duplikasi NIK
+    IF EXISTS (SELECT 1 FROM public.citizens WHERE public.citizens.nik = v_clean_nik) THEN
+        RAISE EXCEPTION 'NIK % sudah terdaftar dalam sistem desa.', v_clean_nik USING ERRCODE = '23505';
+    END IF;
+
+    INSERT INTO public.citizens (
+        nik,
+        nama_lengkap,
+        phone_number,
+        password_hash,
+        no_kk,
+        alamat_lengkap,
+        rt,
+        rw,
+        dusun,
+        is_verified,
+        created_at
+    ) VALUES (
+        v_clean_nik,
+        v_clean_nama,
+        NULLIF(TRIM(p_phone), ''),
+        crypt(p_password, gen_salt('bf', 8)),
+        COALESCE(NULLIF(TRIM(p_no_kk), ''), '3201010000000001'),
+        COALESCE(NULLIF(TRIM(p_alamat), ''), 'Desa Sukamaju'),
+        COALESCE(NULLIF(TRIM(p_rt), ''), '01'),
+        COALESCE(NULLIF(TRIM(p_rw), ''), '01'),
+        COALESCE(NULLIF(TRIM(p_dusun), ''), 'Dusun Mekar'),
+        FALSE,
+        NOW()
+    )
+    RETURNING citizens.id INTO v_new_id;
+
+    RETURN QUERY 
+    SELECT c.id, c.nik, c.nama_lengkap, c.is_verified 
+    FROM public.citizens c 
+    WHERE c.id = v_new_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.register_citizen_secure(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.register_citizen_secure(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 
 -- ============================================================================
 -- 15. TABEL: KONTAK SIAGA & DARURAT DESA (EMERGENCY CONTACTS)
@@ -565,7 +582,10 @@ CREATE TABLE IF NOT EXISTS public.emergency_contacts (
 
 ALTER TABLE public.emergency_contacts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Anon All emergency_contacts" ON public.emergency_contacts;
-CREATE POLICY "Public Anon All emergency_contacts" ON public.emergency_contacts FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "dekati_public_read_emergency_contacts" ON public.emergency_contacts;
+REVOKE ALL ON TABLE public.emergency_contacts FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.emergency_contacts TO anon, authenticated;
+CREATE POLICY "dekati_public_read_emergency_contacts" ON public.emergency_contacts FOR SELECT TO anon, authenticated USING (true);
 CREATE INDEX IF NOT EXISTS idx_emergency_contacts_order ON public.emergency_contacts(order_index);
 
 -- ============================================================================
@@ -586,6 +606,9 @@ CREATE TABLE IF NOT EXISTS public.village_events (
 
 ALTER TABLE public.village_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Anon All village_events" ON public.village_events;
-CREATE POLICY "Public Anon All village_events" ON public.village_events FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "dekati_public_read_village_events" ON public.village_events;
+REVOKE ALL ON TABLE public.village_events FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.village_events TO anon, authenticated;
+CREATE POLICY "dekati_public_read_village_events" ON public.village_events FOR SELECT TO anon, authenticated USING (true);
 CREATE INDEX IF NOT EXISTS idx_village_events_date ON public.village_events(event_date);
 

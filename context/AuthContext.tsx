@@ -35,7 +35,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setVillageProfile(prof);
         if (prof.name) {
           setVillageName(prof.name);
-          Config.villageName = prof.name;
         }
       }
     } catch (e) {
@@ -57,7 +56,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(stored.citizen);
           if (stored.citizen?.village_name) {
             setVillageName(stored.citizen.village_name);
-            Config.villageName = stored.citizen.village_name;
           }
         }
       } catch (err) {
@@ -82,7 +80,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               setVillageProfile(prof);
               if (prof.name) {
                 setVillageName(prof.name);
-                Config.villageName = prof.name;
               }
             }
           }
@@ -105,7 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(newSession.citizen);
       if (newSession.citizen?.village_name) {
         setVillageName(newSession.citizen.village_name);
-        Config.villageName = newSession.citizen.village_name;
       }
       return newSession;
     } finally {
@@ -121,7 +117,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(newSession.citizen);
       if (newSession.citizen?.village_name) {
         setVillageName(newSession.citizen.village_name);
-        Config.villageName = newSession.citizen.village_name;
       }
       return newSession;
     } finally {
@@ -147,7 +142,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(stored.citizen);
       if (stored.citizen?.village_name) {
         setVillageName(stored.citizen.village_name);
-        Config.villageName = stored.citizen.village_name;
       }
     }
   };

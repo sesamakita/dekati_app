@@ -26,8 +26,8 @@ export default function LoginScreen() {
   const router = useRouter();
   const { login, villageName } = useAuth();
   const { showAlert } = useAlert();
-  const [identifier, setIdentifier] = useState('3201012345670001');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -35,7 +35,7 @@ export default function LoginScreen() {
     if (!identifier.trim() || !password.trim()) {
       showAlert({
         title: 'Perhatian',
-        message: 'Mohon masukkan NIK/Nomor WhatsApp dan Kata Sandi.',
+        message: 'Mohon masukkan NIK dan kata sandi.',
         type: 'warning',
       });
       return;
@@ -81,17 +81,17 @@ export default function LoginScreen() {
           {/* FORM LOGIN BENTO CARD */}
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Masuk Akun Warga</Text>
-            <Text style={styles.formSub}>
-              Gunakan NIK atau Nomor WhatsApp terdaftar Anda
+          <Text style={styles.formSub}>
+              Gunakan NIK terdaftar dan kata sandi Anda
             </Text>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>NIK / Nomor WhatsApp</Text>
+              <Text style={styles.inputLabel}>NIK (16 digit)</Text>
               <View style={styles.inputBox}>
                 <Ionicons name="person-outline" size={19} color={Colors.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="3201... atau 0812..."
+                  placeholder="Masukkan NIK 16 digit"
                   placeholderTextColor={Colors.textMuted}
                   value={identifier}
                   onChangeText={setIdentifier}
@@ -136,22 +136,11 @@ export default function LoginScreen() {
               <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
 
-            {/* GUEST ACCESS */}
-            <TouchableOpacity
-              style={styles.guestBtn}
-              activeOpacity={0.85}
-              onPress={() => router.replace('/(tabs)')}
-            >
-              <Text style={styles.guestBtnText}>Masuk sebagai Tamu / Mode Eksplorasi</Text>
-            </TouchableOpacity>
           </View>
 
           {/* REGISTER FOOTER */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Belum memiliki akun warga?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-              <Text style={styles.registerLink}> Daftar Akun Baru</Text>
-            </TouchableOpacity>
+            <Text style={styles.footerText}>Belum memiliki akses? Hubungi administrator desa untuk verifikasi akun.</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

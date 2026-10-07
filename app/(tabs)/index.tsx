@@ -23,6 +23,9 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { Citizen, LetterRequest, Announcement, EmergencyContact, VillageEvent } from '@/store/mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
+import { EmergencyModal } from '@/components/home/EmergencyModal';
+import { EventDetailModal } from '@/components/home/EventDetailModal';
+import { AnnouncementModal } from '@/components/home/AnnouncementModal';
 
 // Key penyimpanan status pengumuman yang telah dibaca
 const STORAGE_KEY_READ_ANNOUNCEMENTS = '@dekatip_read_announcements';
@@ -633,363 +636,28 @@ export default function HomeScreen() {
       </ScrollView>
 
       {/* EMERGENCY CONTACTS MODAL */}
-      <Modal visible={showEmergencyModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleRow}>
-                <View style={styles.modalIconBox}>
-                  <Ionicons name="alert-circle" size={20} color={Colors.urgent} />
-                </View>
-                <View>
-                  <Text style={styles.modalTitle}>Kontak Siaga 24 Jam</Text>
-                  <Text style={styles.modalSubtitle}>{user?.village_name || villageName || Config.villageName}</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowEmergencyModal(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close-circle-outline" size={26} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalInstruction}>
-              Klik kontak di bawah untuk segera terhubung dalam situasi genting atau medis:
-            </Text>
-
-            {(emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).length === 0 ? (
-              <View style={{ paddingVertical: 24, alignItems: 'center' }}>
-                <Ionicons name="call-outline" size={36} color={Colors.textMuted} />
-                <Text style={{ color: Colors.textMuted, fontSize: 13, marginTop: 8 }}>
-                  Belum ada nomor kontak darurat terdaftar
-                </Text>
-              </View>
-            ) : (
-              (emergencyContacts.length > 0 ? emergencyContacts : Config.emergencyContacts).map((contact: any, i: number) => (
-                <TouchableOpacity
-                  key={contact.id || i}
-                  style={styles.contactItem}
-                  activeOpacity={0.7}
-                  onPress={() => Linking.openURL(`tel:${contact.phone.replace(/[^0-9]/g, '')}`)}
-                >
-                  <View style={styles.contactIconCircle}>
-                    <Ionicons name={(contact.icon as any) || 'call'} size={16} color={Colors.urgent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.contactName}>{contact.title}</Text>
-                    <Text style={styles.contactPhone}>{contact.phone}</Text>
-                  </View>
-                  <View style={styles.callPill}>
-                    <Text style={styles.callPillText}>Hubungi</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )}
-
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowEmergencyModal(false)}
-            >
-              <Text style={styles.modalCloseText}>Tutup</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <EmergencyModal
+        visible={showEmergencyModal}
+        onClose={() => setShowEmergencyModal(false)}
+        villageName={user?.village_name || villageName || Config.villageName}
+        contacts={emergencyContacts}
+      />
 
       {/* VILLAGE EVENT DETAIL MODAL */}
-      <Modal
+      <EventDetailModal
         visible={showEventModal && !!selectedEvent}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowEventModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Tombol Tutup (X) di Pojok Kanan Atas */}
-            <TouchableOpacity
-              style={styles.eventModalCloseBtn}
-              onPress={() => setShowEventModal(false)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="close" size={18} color={Colors.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={[styles.modalHeader, { paddingRight: 36 }]}>
-              <View style={[styles.modalTitleRow, { flex: 1 }]}>
-                <View style={[styles.modalIconBox, { backgroundColor: '#F3E8FF', borderColor: '#E9D5FF' }]}>
-                  <Ionicons name="calendar" size={20} color={Colors.purple} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modalTitle} numberOfLines={1}>Agenda Resmi Desa</Text>
-                  <Text style={styles.modalSubtitle}>{selectedEvent?.category || 'Kegiatan Warga'}</Text>
-                </View>
-              </View>
-            </View>
-
-            {selectedEvent && (
-              <View style={{ marginTop: 6 }}>
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 16, color: Colors.textPrimary, marginBottom: 12 }}>
-                  {selectedEvent.title}
-                </Text>
-
-                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E2E8F0', gap: 10, marginBottom: 14 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="time-outline" size={16} color={Colors.primary} />
-                    <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textPrimary }}>
-                      {selectedEvent.event_date} • {selectedEvent.event_time}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="location-outline" size={16} color={Colors.urgent} />
-                    <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textPrimary, flex: 1 }}>
-                      {selectedEvent.location}
-                    </Text>
-                  </View>
-                  {selectedEvent.organizer && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Ionicons name="people-outline" size={16} color={Colors.secondary} />
-                      <Text style={{ fontFamily: Fonts.medium, fontSize: 12.5, color: Colors.textSecondary }}>
-                        Penyelenggara: {selectedEvent.organizer}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {selectedEvent.description ? (
-                  <Text style={{ fontFamily: Fonts.regular, fontSize: 13, color: Colors.textSecondary, lineHeight: 20, marginBottom: 16 }}>
-                    {selectedEvent.description}
-                  </Text>
-                ) : null}
-
-                <TouchableOpacity
-                  style={[styles.modalCloseButton, { backgroundColor: Colors.purple, borderColor: Colors.purple }]}
-                  onPress={() => setShowEventModal(false)}
-                >
-                  <Text style={[styles.modalCloseText, { color: '#FFFFFF' }]}>Tutup Informasi</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
+        event={selectedEvent}
+        onClose={() => setShowEventModal(false)}
+      />
 
       {/* ANNOUNCEMENT POPUP / MODAL (UNTUK PENGUMUMAN PENTING & DETAIL KABAR DESA) */}
-      <Modal
+      <AnnouncementModal
         visible={showUrgentModal && !!activeModalNews}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCloseUrgentModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.urgentModalContent,
-              isUrgentExpanded && styles.urgentModalContentExpanded,
-            ]}
-          >
-            {/* Header Modal (Badge & Tombol (x) Close) */}
-            <View style={styles.urgentModalHeader}>
-              <View
-                style={[
-                  styles.urgentModalBadge,
-                  !activeModalNews?.is_urgent && {
-                    backgroundColor: Colors.bento.hero.badge,
-                    borderColor: Colors.bento.hero.border,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name={activeModalNews?.is_urgent ? 'warning' : 'newspaper-outline'}
-                  size={14}
-                  color={activeModalNews?.is_urgent ? Colors.urgent : Colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.urgentModalBadgeText,
-                    !activeModalNews?.is_urgent && { color: Colors.primary },
-                  ]}
-                >
-                  {activeModalNews?.is_urgent ? 'PENGUMUMAN PENTING' : 'KABAR DESA'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={handleCloseUrgentModal}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                style={styles.urgentModalCloseBtn}
-              >
-                <Ionicons name="close" size={18} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {!isUrgentExpanded ? (
-              // TAMPILAN 1: POPUP AWAL (Hanya tombol (x) close dan 'Baca')
-              <View>
-                <View style={styles.urgentMetaRow}>
-                  <View
-                    style={[
-                      styles.urgentCategoryPill,
-                      !activeModalNews?.is_urgent && {
-                        backgroundColor: Colors.bento.hero.badge,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.urgentCategoryPillText,
-                        !activeModalNews?.is_urgent && { color: Colors.primary },
-                      ]}
-                    >
-                      {activeModalNews?.category || 'Penting'}
-                    </Text>
-                  </View>
-                  <Text style={styles.urgentMetaText}>
-                    {activeModalNews?.date} • {activeModalNews?.author}
-                  </Text>
-                  <View
-                    style={
-                      activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                        ? styles.readStatusBadge
-                        : styles.unreadStatusBadge
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? 'checkmark-done'
-                          : 'mail-unread'
-                      }
-                      size={11}
-                      color={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? '#16A34A'
-                          : Colors.urgent
-                      }
-                    />
-                    <Text
-                      style={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? styles.readStatusText
-                          : styles.unreadStatusText
-                      }
-                    >
-                      {activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                        ? 'Sudah Dibaca'
-                        : 'Belum Dibaca'}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.urgentModalTitle}>{activeModalNews?.title}</Text>
-
-                <View style={styles.urgentBodyBox}>
-                  <Text style={styles.urgentModalDesc} numberOfLines={3}>
-                    {activeModalNews?.summary}
-                  </Text>
-                </View>
-
-                {/* Tombol Aksi: HANYA 'Baca' */}
-                <TouchableOpacity
-                  style={[
-                    styles.urgentReadButton,
-                    !activeModalNews?.is_urgent && {
-                      backgroundColor: Colors.primary,
-                      shadowColor: Colors.primary,
-                    },
-                  ]}
-                  activeOpacity={0.88}
-                  onPress={() => {
-                    if (activeModalNews) {
-                      markAsRead(activeModalNews.id);
-                    }
-                    setIsUrgentExpanded(true);
-                  }}
-                >
-                  <Ionicons name="book-outline" size={16} color="#FFFFFF" />
-                  <Text style={styles.urgentReadButtonText}>Baca</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              // TAMPILAN 2: BACA LENGKAP (Kontainer memenuhi layar dengan batas atas & bawah, isi scrollable)
-              <ScrollView
-                style={styles.urgentExpandedScroll}
-                contentContainerStyle={styles.urgentExpandedScrollContent}
-                showsVerticalScrollIndicator={true}
-              >
-                <View style={styles.urgentMetaRow}>
-                  <View
-                    style={[
-                      styles.urgentCategoryPill,
-                      !activeModalNews?.is_urgent && {
-                        backgroundColor: Colors.bento.hero.badge,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.urgentCategoryPillText,
-                        !activeModalNews?.is_urgent && { color: Colors.primary },
-                      ]}
-                    >
-                      {activeModalNews?.category || 'Informasi'}
-                    </Text>
-                  </View>
-                  <Text style={styles.urgentMetaText}>
-                    {activeModalNews?.date} • {activeModalNews?.author}
-                  </Text>
-                  <View
-                    style={
-                      activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                        ? styles.readStatusBadge
-                        : styles.unreadStatusBadge
-                    }
-                  >
-                    <Ionicons
-                      name={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? 'checkmark-done'
-                          : 'mail-unread'
-                      }
-                      size={11}
-                      color={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? '#16A34A'
-                          : Colors.urgent
-                      }
-                    />
-                    <Text
-                      style={
-                        activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                          ? styles.readStatusText
-                          : styles.unreadStatusText
-                      }
-                    >
-                      {activeModalNews && readAnnouncementIds.has(activeModalNews.id)
-                        ? 'Sudah Dibaca'
-                        : 'Belum Dibaca'}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.urgentModalTitleExpanded}>{activeModalNews?.title}</Text>
-
-                <View style={styles.urgentFullContentBox}>
-                  <Text style={styles.urgentFullContentText}>
-                    {activeModalNews?.content || activeModalNews?.summary}
-                  </Text>
-                </View>
-
-                <View style={styles.urgentNoticeBox}>
-                  <Ionicons name="information-circle" size={16} color="#B45309" />
-                  <Text style={styles.urgentNoticeText}>
-                    Informasi resmi dari pemerintah desa. Harap perhatikan waktu & ketentuan yang berlaku.
-                  </Text>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
+        announcement={activeModalNews}
+        isRead={activeModalNews ? readAnnouncementIds.has(activeModalNews.id) : false}
+        onMarkAsRead={markAsRead}
+        onClose={handleCloseUrgentModal}
+      />
     </SafeAreaView>
   );
 }
