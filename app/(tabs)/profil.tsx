@@ -1,5 +1,5 @@
 // app/(tabs)/profil.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +20,7 @@ import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { Citizen } from '@/store/mockData';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/context/AlertContext';
 import { PhotoPreviewModal } from '@/components/profile/PhotoPreviewModal';
@@ -34,6 +35,7 @@ export default function ProfilScreen() {
   const [user, setUser] = useState<Citizen | null>(authUser);
   const [familyMembers, setFamilyMembers] = useState<Citizen[]>([]);
   const [showNik, setShowNik] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Modal Visibility States
   const [showEditModal, setShowEditModal] = useState(false);
@@ -46,21 +48,34 @@ export default function ProfilScreen() {
   const [previewPhotoUri, setPreviewPhotoUri] = useState<string | null>(null);
 
   const refreshData = async () => {
-    const u = await api.getCurrentUser();
-    const fam = await api.getFamilyMembers();
-    setUser(u);
-    setFamilyMembers(fam);
-    await refreshUser();
-  };
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const u = authUser || (await api.getCurrentUser());
+    try {
+      await refreshUser();
+      const u = await api.getCurrentUser(true);
       const fam = await api.getFamilyMembers();
       setUser(u);
       setFamilyMembers(fam);
-    };
-    fetchProfile();
+    } catch (e) {
+      console.warn('[ProfilScreen] Refresh error:', e);
+    }
+  };
+
+  const onPullRefresh = async () => {
+    setRefreshing(true);
+    await refreshData();
+    setRefreshing(false);
+  };
+
+  // Otomatis sinkron data terbaru dari Supabase setiap kali layar profil dibuka
+  useFocusEffect(
+    useCallback(() => {
+      refreshData();
+    }, [])
+  );
+
+  useEffect(() => {
+    if (authUser) {
+      setUser(authUser);
+    }
   }, [authUser]);
 
   const maskedNik = (nik?: string) => {
@@ -210,6 +225,14 @@ export default function ProfilScreen() {
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onPullRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {/* IDENTITAS WARGA BENTO CARD */}
         <View style={styles.profileCard}>

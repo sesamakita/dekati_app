@@ -51,7 +51,78 @@ class CitizenService {
     this.currentCitizen = mockUser;
   }
 
-  async getCurrentUser(): Promise<Citizen> {
+  async refreshCitizenFromDatabase(): Promise<Citizen | null> {
+    try {
+      const active = auth.getCurrentCitizen() || (await auth.getStoredSession())?.citizen || this.currentCitizen;
+      if (!active?.nik && !active?.id) return null;
+
+      let query = supabase.from('citizens').select('*');
+      if (active.id && !active.id.startsWith('cit-')) {
+        query = query.eq('id', active.id);
+      } else if (active.nik) {
+        query = query.eq('nik', active.nik);
+      }
+
+      const { data, error } = await query.maybeSingle();
+
+      if (!error && data) {
+        const isVerified = !!data.is_verified;
+        const verifiedBy = data.verified_by || '';
+        const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+        const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+          ? 'verified'
+          : isRevision
+          ? 'needs_revision'
+          : 'pending';
+        const rejectionReason = isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined;
+
+        const updated: Citizen = {
+          id: data.id,
+          nik: data.nik,
+          no_kk: data.no_kk || active.no_kk || '',
+          nama_lengkap: data.nama_lengkap || active.nama_lengkap,
+          tempat_lahir: data.tempat_lahir || active.tempat_lahir || undefined,
+          jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || active.jenis_kelamin || 'L',
+          status_keluarga: data.status_dalam_keluarga || active.status_keluarga || '',
+          tanggal_lahir: data.tanggal_lahir || active.tanggal_lahir || '',
+          pekerjaan: data.pekerjaan || active.pekerjaan || '',
+          rt: data.rt || active.rt || '',
+          rw: data.rw || active.rw || '',
+          dusun: data.dusun || active.dusun || '',
+          is_verified: isVerified,
+          verified_by: verifiedBy,
+          foto_kk_path: data.foto_kk_path || active.foto_kk_path || undefined,
+          foto_ktp_path: data.foto_ktp_path || active.foto_ktp_path || undefined,
+          foto_selfie_ktp_path: data.foto_selfie_ktp_path || active.foto_selfie_ktp_path || undefined,
+          verification_status: verificationStatus,
+          rejection_reason: rejectionReason,
+          alamat_lengkap: data.alamat_lengkap || active.alamat_lengkap || undefined,
+          phone_number: data.phone_number || active.phone_number || undefined,
+          phone: data.phone_number || active.phone || undefined,
+          no_telepon: data.phone_number || active.no_telepon || undefined,
+          village_name: data.village_name || active.village_name || undefined,
+          village_code: data.village_code || active.village_code || undefined,
+          district: data.district || active.district || undefined,
+          regency: data.regency || active.regency || undefined,
+          province: data.province || active.province || undefined,
+        };
+
+        this.currentCitizen = updated;
+        await auth.updateSessionCitizen(updated);
+        return updated;
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] refreshCitizenFromDatabase offline fallback:', err);
+    }
+    return null;
+  }
+
+  async getCurrentUser(forceRefresh = false): Promise<Citizen> {
+    if (forceRefresh) {
+      const refreshed = await this.refreshCitizenFromDatabase();
+      if (refreshed) return refreshed;
+    }
+
     const active = auth.getCurrentCitizen();
     if (active) {
       this.currentCitizen = active;
@@ -68,52 +139,10 @@ class CitizenService {
       console.warn('[Dekati Mobile] Gagal baca sesi lokal:', e);
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('citizens')
-        .select('*')
-        .eq('nik', this.currentCitizen.nik)
-        .maybeSingle();
+    // Coba ambil dari Supabase
+    const refreshed = await this.refreshCitizenFromDatabase();
+    if (refreshed) return refreshed;
 
-      if (!error && data) {
-        const isVerified = !!data.is_verified;
-        const verifiedBy = data.verified_by || '';
-        const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
-        const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
-          ? 'verified'
-          : isRevision
-          ? 'needs_revision'
-          : 'pending';
-        const rejectionReason = isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined;
-
-        this.currentCitizen = {
-          id: data.id,
-          nik: data.nik,
-          no_kk: data.no_kk || '',
-          nama_lengkap: data.nama_lengkap,
-          jenis_kelamin: data.jenis_kelamin || 'L',
-          status_keluarga: data.status_dalam_keluarga || '',
-          tanggal_lahir: data.tanggal_lahir || '',
-          pekerjaan: data.pekerjaan || '',
-          rt: data.rt || '',
-          rw: data.rw || '',
-          dusun: data.dusun || '',
-          is_verified: isVerified,
-          verified_by: verifiedBy,
-          foto_kk_path: data.foto_kk_path || undefined,
-          foto_ktp_path: data.foto_ktp_path || undefined,
-          foto_selfie_ktp_path: data.foto_selfie_ktp_path || undefined,
-          verification_status: verificationStatus,
-          rejection_reason: rejectionReason,
-          alamat_lengkap: data.alamat_lengkap || undefined,
-          village_name: data.village_name || undefined,
-        };
-        auth.updateSessionCitizen(this.currentCitizen);
-        return this.currentCitizen;
-      }
-    } catch (err) {
-      console.warn('[Dekati Mobile] Supabase getCurrentUser offline fallback.', err);
-    }
     return this.currentCitizen;
   }
 
@@ -229,16 +258,16 @@ class CitizenService {
 
     const insertPayload: any = {
       nik: cleanNik,
-      no_kk: noKk || null,
+      no_kk: noKk || '3201010000000001',
       nama_lengkap: cleanNama,
       jenis_kelamin: payload.jenis_kelamin || 'L',
       status_dalam_keluarga: payload.status_keluarga || null,
       tanggal_lahir: payload.tanggal_lahir?.trim() || null,
       pekerjaan: payload.pekerjaan?.trim() || null,
-      rt: current.rt?.trim() || null,
-      rw: current.rw?.trim() || null,
-      dusun: current.dusun?.trim() || null,
-      alamat_lengkap: current.alamat_lengkap || null,
+      rt: current.rt?.trim() || '01',
+      rw: current.rw?.trim() || '01',
+      dusun: current.dusun?.trim() || 'Dusun',
+      alamat_lengkap: current.alamat_lengkap?.trim() || 'Alamat Domisili Warga',
       phone_number: payload.phone_number?.trim() || null,
       foto_kk_path: cloudPhotoPath,
       is_verified: false,
@@ -382,10 +411,20 @@ class CitizenService {
       };
 
       try {
-        await supabase
-          .from('citizens')
-          .update(updatePayload)
-          .eq('id', payload.citizenId);
+        if (payload.citizenId && !payload.citizenId.startsWith('cit-')) {
+          const res = await supabase
+            .from('citizens')
+            .update(updatePayload)
+            .eq('id', payload.citizenId);
+          if (res.error && this.currentCitizen?.nik) {
+            await supabase.from('citizens').update(updatePayload).eq('nik', this.currentCitizen.nik);
+          }
+        } else if (this.currentCitizen?.nik) {
+          await supabase
+            .from('citizens')
+            .update(updatePayload)
+            .eq('nik', this.currentCitizen.nik);
+        }
       } catch (dbErr) {
         console.warn('[Dekati Mobile] uploadCitizenVerificationDocs Supabase exception:', dbErr);
       }
@@ -449,6 +488,7 @@ class CitizenService {
     no_kk?: string;
     status_keluarga?: string;
     jenis_kelamin?: 'L' | 'P';
+    tempat_lahir?: string;
     tanggal_lahir?: string;
     pekerjaan?: string;
     rt?: string;
@@ -469,6 +509,7 @@ class CitizenService {
     if (payload.no_kk !== undefined) dbPayload.no_kk = payload.no_kk.trim() || null;
     if (payload.status_keluarga !== undefined) dbPayload.status_dalam_keluarga = payload.status_keluarga.trim() || null;
     if (payload.jenis_kelamin !== undefined) dbPayload.jenis_kelamin = payload.jenis_kelamin;
+    if (payload.tempat_lahir !== undefined) dbPayload.tempat_lahir = payload.tempat_lahir.trim() || null;
     if (payload.tanggal_lahir !== undefined) dbPayload.tanggal_lahir = payload.tanggal_lahir.trim() || null;
     if (payload.pekerjaan !== undefined) dbPayload.pekerjaan = payload.pekerjaan.trim() || null;
     if (payload.rt !== undefined) dbPayload.rt = payload.rt.trim() || null;
@@ -480,47 +521,81 @@ class CitizenService {
     let updatedCitizen: Citizen | undefined;
 
     try {
-      const { data, error } = await supabase
-        .from('citizens')
-        .update(dbPayload)
-        .eq('id', payload.id)
-        .select('*')
-        .single();
+      let query = supabase.from('citizens').update(dbPayload);
+      if (payload.id && !payload.id.startsWith('cit-')) {
+        const { data, error } = await query.eq('id', payload.id).select('*').maybeSingle();
+        if (!error && data) {
+          const isVerified = !!data.is_verified;
+          const verifiedBy = data.verified_by || '';
+          const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+          const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+            ? 'verified'
+            : isRevision
+            ? 'needs_revision'
+            : 'pending';
 
-      if (!error && data) {
-        const isVerified = !!data.is_verified;
-        const verifiedBy = data.verified_by || '';
-        const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
-        const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
-          ? 'verified'
-          : isRevision
-          ? 'needs_revision'
-          : 'pending';
+          updatedCitizen = {
+            id: data.id,
+            nik: data.nik,
+            no_kk: data.no_kk || '',
+            nama_lengkap: data.nama_lengkap,
+            tempat_lahir: data.tempat_lahir,
+            jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || 'L',
+            status_keluarga: data.status_dalam_keluarga || '',
+            tanggal_lahir: data.tanggal_lahir || '',
+            pekerjaan: data.pekerjaan || '',
+            rt: data.rt || '',
+            rw: data.rw || '',
+            dusun: data.dusun || '',
+            is_verified: isVerified,
+            verified_by: verifiedBy,
+            foto_kk_path: data.foto_kk_path,
+            foto_ktp_path: data.foto_ktp_path,
+            foto_selfie_ktp_path: data.foto_selfie_ktp_path,
+            verification_status: verificationStatus,
+            rejection_reason: isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined,
+            alamat_lengkap: data.alamat_lengkap,
+            phone_number: data.phone_number,
+            village_name: data.village_name,
+          };
+        }
+      } else if (this.currentCitizen?.nik) {
+        const { data, error } = await supabase.from('citizens').update(dbPayload).eq('nik', this.currentCitizen.nik).select('*').maybeSingle();
+        if (!error && data) {
+          const isVerified = !!data.is_verified;
+          const verifiedBy = data.verified_by || '';
+          const isRevision = !isVerified && verifiedBy.startsWith('revisi:');
+          const verificationStatus: 'verified' | 'pending' | 'needs_revision' = isVerified
+            ? 'verified'
+            : isRevision
+            ? 'needs_revision'
+            : 'pending';
 
-        updatedCitizen = {
-          id: data.id,
-          nik: data.nik,
-          no_kk: data.no_kk || '',
-          nama_lengkap: data.nama_lengkap,
-          jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || 'L',
-          status_keluarga: data.status_dalam_keluarga || '',
-          tanggal_lahir: data.tanggal_lahir || '',
-          pekerjaan: data.pekerjaan || '',
-          rt: data.rt || '',
-          rw: data.rw || '',
-          dusun: data.dusun || '',
-          is_verified: isVerified,
-          verified_by: verifiedBy,
-          foto_kk_path: data.foto_kk_path,
-          foto_ktp_path: data.foto_ktp_path,
-          foto_selfie_ktp_path: data.foto_selfie_ktp_path,
-          verification_status: verificationStatus,
-          rejection_reason: isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined,
-          alamat_lengkap: data.alamat_lengkap,
-          village_name: data.village_name,
-        };
-      } else if (error) {
-        console.warn('[Dekati Mobile] updateCitizenProfile Supabase error:', error);
+          updatedCitizen = {
+            id: data.id,
+            nik: data.nik,
+            no_kk: data.no_kk || '',
+            nama_lengkap: data.nama_lengkap,
+            tempat_lahir: data.tempat_lahir,
+            jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || 'L',
+            status_keluarga: data.status_dalam_keluarga || '',
+            tanggal_lahir: data.tanggal_lahir || '',
+            pekerjaan: data.pekerjaan || '',
+            rt: data.rt || '',
+            rw: data.rw || '',
+            dusun: data.dusun || '',
+            is_verified: isVerified,
+            verified_by: verifiedBy,
+            foto_kk_path: data.foto_kk_path,
+            foto_ktp_path: data.foto_ktp_path,
+            foto_selfie_ktp_path: data.foto_selfie_ktp_path,
+            verification_status: verificationStatus,
+            rejection_reason: isRevision ? verifiedBy.replace(/^revisi:\s*/i, '').trim() : undefined,
+            alamat_lengkap: data.alamat_lengkap,
+            phone_number: data.phone_number,
+            village_name: data.village_name,
+          };
+        }
       }
     } catch (err: any) {
       console.warn('[Dekati Mobile] updateCitizenProfile exception:', err);

@@ -85,7 +85,8 @@ export const auth = {
       nik: row.nik,
       no_kk: row.no_kk || '',
       nama_lengkap: row.nama_lengkap,
-      jenis_kelamin: row.jenis_kelamin || 'L',
+      tempat_lahir: row.tempat_lahir || undefined,
+      jenis_kelamin: (row.jenis_kelamin as 'L' | 'P') || 'L',
       status_keluarga: row.status_dalam_keluarga || '',
       tanggal_lahir: row.tanggal_lahir || '',
       pekerjaan: row.pekerjaan || '',
@@ -93,10 +94,21 @@ export const auth = {
       rw: row.rw || '',
       dusun: row.dusun || '',
       is_verified: !!row.is_verified,
-      verification_status: row.is_verified ? 'verified' : 'pending',
+      verified_by: row.verified_by || undefined,
+      verification_status: row.is_verified ? 'verified' : (row.verified_by?.startsWith('revisi:') ? 'needs_revision' : 'pending'),
+      rejection_reason: row.verified_by?.startsWith('revisi:') ? row.verified_by.replace(/^revisi:\s*/i, '').trim() : undefined,
       alamat_lengkap: row.alamat_lengkap || undefined,
+      phone_number: row.phone_number || undefined,
+      phone: row.phone_number || undefined,
+      no_telepon: row.phone_number || undefined,
       village_name: row.village_name || undefined,
       village_code: row.village_code || undefined,
+      district: row.district || undefined,
+      regency: row.regency || undefined,
+      province: row.province || undefined,
+      foto_ktp_path: row.foto_ktp_path || undefined,
+      foto_kk_path: row.foto_kk_path || undefined,
+      foto_selfie_ktp_path: row.foto_selfie_ktp_path || undefined,
     };
 
     inMemorySession = { citizen, token: '', loggedInAt: new Date().toISOString() };
@@ -137,7 +149,12 @@ export const auth = {
           p_alamat: params.alamat?.trim() || null,
           p_rt: params.rt?.trim() || '01',
           p_rw: params.rw?.trim() || '01',
-          p_dusun: params.dusun?.trim() || 'Dusun'
+          p_dusun: params.dusun?.trim() || 'Dusun',
+          p_village_name: params.village_name?.trim() || null,
+          p_village_code: params.village_code?.trim() || null,
+          p_district: params.district?.trim() || null,
+          p_regency: params.regency?.trim() || null,
+          p_province: params.province?.trim() || null,
         });
 
         if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
@@ -186,6 +203,11 @@ export const auth = {
             rt: params.rt?.trim() || '01',
             rw: params.rw?.trim() || '01',
             dusun: params.dusun?.trim() || 'Dusun',
+            village_name: params.village_name?.trim() || null,
+            village_code: params.village_code?.trim() || null,
+            district: params.district?.trim() || null,
+            regency: params.regency?.trim() || null,
+            province: params.province?.trim() || null,
             is_verified: false,
             verified_by: null,
             created_at: new Date().toISOString()
@@ -222,6 +244,11 @@ export const auth = {
           rt: params.rt?.trim() || '01',
           rw: params.rw?.trim() || '01',
           dusun: params.dusun?.trim() || 'Dusun',
+          village_name: params.village_name?.trim() || null,
+          village_code: params.village_code?.trim() || null,
+          district: params.district?.trim() || null,
+          regency: params.regency?.trim() || null,
+          province: params.province?.trim() || null,
           is_verified: false,
           created_at: new Date().toISOString()
         };
@@ -232,8 +259,9 @@ export const auth = {
         nik: registeredData.nik || nik,
         no_kk: registeredData.no_kk || params.no_kk || '',
         nama_lengkap: registeredData.nama_lengkap || nama,
+        tempat_lahir: registeredData.tempat_lahir || undefined,
         jenis_kelamin: (registeredData.jenis_kelamin as 'L' | 'P') || 'L',
-        status_keluarga: registeredData.status_dalam_keluarga || '',
+        status_keluarga: registeredData.status_dalam_keluarga || 'Kepala Keluarga',
         tanggal_lahir: registeredData.tanggal_lahir || '',
         pekerjaan: registeredData.pekerjaan || '',
         rt: registeredData.rt || params.rt || '',
@@ -242,8 +270,14 @@ export const auth = {
         is_verified: false,
         verification_status: 'pending',
         alamat_lengkap: registeredData.alamat_lengkap || params.alamat || undefined,
-        village_name: registeredData.village_name || undefined,
-        village_code: registeredData.village_code || undefined,
+        phone_number: registeredData.phone_number || params.phone || undefined,
+        phone: registeredData.phone_number || params.phone || undefined,
+        no_telepon: registeredData.phone_number || params.phone || undefined,
+        village_name: registeredData.village_name || params.village_name || undefined,
+        village_code: registeredData.village_code || params.village_code || undefined,
+        district: registeredData.district || params.district || undefined,
+        regency: registeredData.regency || params.regency || undefined,
+        province: registeredData.province || params.province || undefined,
       };
 
       inMemorySession = { citizen, token: '', loggedInAt: new Date().toISOString() };

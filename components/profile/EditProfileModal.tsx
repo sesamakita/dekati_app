@@ -63,7 +63,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [editNoKk, setEditNoKk] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editGender, setEditGender] = useState<'L' | 'P'>('L');
+  const [editBirthPlace, setEditBirthPlace] = useState('');
   const [editBirthDate, setEditBirthDate] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [editJob, setEditJob] = useState('');
   const [editRt, setEditRt] = useState('');
   const [editRw, setEditRw] = useState('');
@@ -81,7 +83,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setEditNoKk(targetMember.no_kk || currentUser?.no_kk || '');
       setEditRole(targetMember.status_keluarga || 'Kepala Keluarga');
       setEditGender((targetMember.jenis_kelamin as 'L' | 'P') || 'L');
+      setEditBirthPlace(targetMember.tempat_lahir || '');
       setEditBirthDate(targetMember.tanggal_lahir || '');
+      setEditPhone(targetMember.phone_number || targetMember.phone || '');
       setEditJob(targetMember.pekerjaan || '');
       setEditRt(targetMember.rt || currentUser?.rt || '');
       setEditRw(targetMember.rw || currentUser?.rw || '');
@@ -108,7 +112,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         no_kk: editNoKk.trim(),
         status_keluarga: editRole.trim(),
         jenis_kelamin: editGender,
+        tempat_lahir: editBirthPlace.trim(),
         tanggal_lahir: editBirthDate.trim(),
+        phone_number: editPhone.trim(),
         pekerjaan: editJob.trim(),
         rt: editRt.trim(),
         rw: editRw.trim(),
@@ -280,15 +286,41 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               </View>
             </View>
 
-            {/* TANGGAL LAHIR */}
+            {/* TEMPAT & TANGGAL LAHIR */}
             <View style={styles.modalInputGroup}>
-              <Text style={styles.modalInputLabel}>Tanggal Lahir (YYYY-MM-DD)</Text>
+              <Text style={styles.modalInputLabel}>Tempat & Tanggal Lahir</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1.2 }}>
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="Kota Lahir (e.g. Bogor)"
+                    placeholderTextColor={Colors.textMuted}
+                    value={editBirthPlace}
+                    onChangeText={setEditBirthPlace}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={styles.modalTextInput}
+                    placeholder="1990-05-20"
+                    placeholderTextColor={Colors.textMuted}
+                    value={editBirthDate}
+                    onChangeText={setEditBirthDate}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* NOMOR TELEPON / WA */}
+            <View style={styles.modalInputGroup}>
+              <Text style={styles.modalInputLabel}>Nomor HP / WhatsApp Warga</Text>
               <TextInput
                 style={styles.modalTextInput}
-                placeholder="Contoh: 1990-05-20"
+                placeholder="Contoh: 081234567890"
                 placeholderTextColor={Colors.textMuted}
-                value={editBirthDate}
-                onChangeText={setEditBirthDate}
+                keyboardType="phone-pad"
+                value={editPhone}
+                onChangeText={setEditPhone}
               />
             </View>
 

@@ -5,6 +5,7 @@ export interface Citizen {
   nik: string;
   no_kk: string;
   nama_lengkap: string;
+  tempat_lahir?: string;
   jenis_kelamin: 'L' | 'P';
   status_keluarga: string;
   tanggal_lahir: string;
@@ -22,9 +23,15 @@ export interface Citizen {
   document_type?: string;
   no_telepon?: string;
   phone?: string;
+  phone_number?: string;
   alamat_lengkap?: string;
   village_name?: string;
   village_code?: string;
+  district?: string;
+  regency?: string;
+  province?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface VillageProfile {

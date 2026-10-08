@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, CitizenSession, RegisterParams } from '@/services/auth';
 import { Citizen, VillageProfile } from '@/store/mockData';
 import { api } from '@/services/api';
+import { citizenService } from '@/services/api/citizenService';
 import { supabase } from '@/services/supabase';
 import { Config } from '@/constants/Config';
 
@@ -95,6 +96,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Listen to realtime citizens table changes from Supabase (e.g. validasi & verifikasi oleh admin web)
+  useEffect(() => {
+    if (!user?.nik && !user?.id) return;
+
+    let citChannel: any = null;
+    try {
+      citChannel = supabase
+        .channel(`mobile-realtime-citizen-${user.id || user.nik}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'citizens' },
+          async (payload) => {
+            if (payload.new) {
+              const row = payload.new as any;
+              if (row.id === user.id || row.nik === user.nik) {
+                console.log('[AuthContext] Menerima update status warga dari server:', row.is_verified, row.verified_by);
+                const fresh = await citizenService.refreshCitizenFromDatabase();
+                if (fresh) {
+                  setUser(fresh);
+                  if (fresh.village_name) {
+                    setVillageName(fresh.village_name);
+                  }
+                }
+              }
+            }
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('[AuthContext] Citizen realtime subscription error:', e);
+    }
+
+    return () => {
+      if (citChannel) supabase.removeChannel(citChannel);
+    };
+  }, [user?.id, user?.nik]);
+
   const login = async (identifier: string, password: string): Promise<CitizenSession> => {
     setIsLoading(true);
     try {
@@ -138,6 +176,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshUser = async (): Promise<void> => {
+    try {
+      const fresh = await citizenService.refreshCitizenFromDatabase();
+      if (fresh) {
+        setUser(fresh);
+        if (fresh.village_name) {
+          setVillageName(fresh.village_name);
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('[AuthContext] Gagal sinkron data warga dari server:', e);
+    }
+
     const stored = await auth.getStoredSession();
     if (stored) {
       setSession(stored);
