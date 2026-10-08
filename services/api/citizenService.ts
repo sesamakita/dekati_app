@@ -223,7 +223,7 @@ class CitizenService {
     const noKk = current.no_kk || '';
 
     let cloudPhotoPath = payload.foto_kk_path || '';
-    if (cloudPhotoPath && cloudPhotoPath.startsWith('file://')) {
+    if (cloudPhotoPath && !cloudPhotoPath.startsWith('http://') && !cloudPhotoPath.startsWith('https://') && !cloudPhotoPath.startsWith('data:')) {
       cloudPhotoPath = await uploadImageToSupabase(cloudPhotoPath, 'citizens', (payload as any).base64);
     }
 
@@ -306,7 +306,7 @@ class CitizenService {
 
   async updateFamilyMemberDocument(citizenId: string, photoUri: string, base64?: string): Promise<{ success: boolean; message?: string }> {
     let cloudPhotoUrl = photoUri;
-    if (cloudPhotoUrl && cloudPhotoUrl.startsWith('file://')) {
+    if (cloudPhotoUrl && !cloudPhotoUrl.startsWith('http://') && !cloudPhotoUrl.startsWith('https://') && !cloudPhotoUrl.startsWith('data:')) {
       cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'citizens', base64);
     }
 
@@ -352,18 +352,23 @@ class CitizenService {
     fotoKkBase64?: string | null;
   }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
     try {
+      const shouldUpload = (uri?: string | null) => {
+        if (!uri) return false;
+        return !uri.startsWith('http://') && !uri.startsWith('https://') && !uri.startsWith('data:');
+      };
+
       let cloudKtp = payload.fotoKtpUri;
-      if (cloudKtp && cloudKtp.startsWith('file://')) {
+      if (shouldUpload(cloudKtp)) {
         cloudKtp = await uploadImageToSupabase(cloudKtp, 'citizens', payload.fotoKtpBase64);
       }
 
       let cloudSelfie = payload.fotoSelfieUri;
-      if (cloudSelfie && cloudSelfie.startsWith('file://')) {
+      if (shouldUpload(cloudSelfie)) {
         cloudSelfie = await uploadImageToSupabase(cloudSelfie, 'citizens', payload.fotoSelfieBase64);
       }
 
       let cloudKk = payload.fotoKkUri || '';
-      if (cloudKk && cloudKk.startsWith('file://')) {
+      if (shouldUpload(cloudKk)) {
         cloudKk = await uploadImageToSupabase(cloudKk, 'citizens', payload.fotoKkBase64);
       }
 
