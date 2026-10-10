@@ -15,6 +15,7 @@ export interface RegisterParams {
   nama: string;
   phone: string;
   no_kk?: string;
+  status_keluarga?: string;
   password: string;
   alamat?: string;
   rt?: string;
@@ -208,6 +209,7 @@ export const auth = {
             district: params.district?.trim() || null,
             regency: params.regency?.trim() || null,
             province: params.province?.trim() || null,
+            status_dalam_keluarga: params.status_keluarga?.trim() || 'Kepala Keluarga',
             is_verified: false,
             verified_by: null,
             created_at: new Date().toISOString()

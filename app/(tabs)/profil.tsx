@@ -224,10 +224,10 @@ export default function ProfilScreen() {
   };
 
   const handleDeleteFamilyMember = (member: Citizen) => {
-    if (member.nik === user?.nik || member.status_keluarga === 'Kepala Keluarga') {
+    if (member.nik === user?.nik || member.id === user?.id) {
       showAlert({
         title: 'Tidak Dapat Dihapus',
-        message: 'Data Kepala Keluarga merupakan akun utama pemegang profil.',
+        message: 'Akun Anda saat ini merupakan akun login aktif pemegang aplikasi.',
         type: 'warning',
       });
       return;
@@ -458,7 +458,8 @@ export default function ProfilScreen() {
           </View>
 
           {familyMembers.map((member) => {
-            const isSelf = member.nik === user?.nik || member.status_keluarga === 'Kepala Keluarga';
+            const isSelf = member.nik === user?.nik || member.id === user?.id;
+            const isHeadOfFamily = (member.status_keluarga || '').toLowerCase().includes('kepala keluarga');
             const status = member.verification_status || (member.is_verified ? 'verified' : 'pending');
             const isVerified = status === 'verified';
             const isPending = status === 'pending';
@@ -467,11 +468,11 @@ export default function ProfilScreen() {
             return (
               <View key={member.id} style={[styles.familyCard, isRevision && styles.familyCardRevision]}>
                 <View style={styles.familyCardTop}>
-                  <View style={[styles.familyIconBox, isSelf && styles.familyIconBoxSelf]}>
+                  <View style={[styles.familyIconBox, isHeadOfFamily ? styles.familyIconBoxHead : isSelf && styles.familyIconBoxSelf]}>
                     <Ionicons
-                      name={isSelf ? 'shield-checkmark' : member.jenis_kelamin === 'L' ? 'man' : 'woman'}
+                      name={isHeadOfFamily ? 'ribbon' : isSelf ? 'shield-checkmark' : member.jenis_kelamin === 'L' ? 'man' : 'woman'}
                       size={20}
-                      color={isSelf ? Colors.primaryDark : member.jenis_kelamin === 'L' ? Colors.secondary : Colors.urgent}
+                      color={isHeadOfFamily ? '#D97706' : isSelf ? Colors.primaryDark : member.jenis_kelamin === 'L' ? Colors.secondary : Colors.urgent}
                     />
                   </View>
                   <View style={{ flex: 1, marginLeft: 12 }}>
@@ -480,6 +481,11 @@ export default function ProfilScreen() {
                       {isSelf && (
                         <View style={styles.selfBadge}>
                           <Text style={styles.selfBadgeText}>Anda</Text>
+                        </View>
+                      )}
+                      {isHeadOfFamily && (
+                        <View style={[styles.selfBadge, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                          <Text style={[styles.selfBadgeText, { color: '#B45309' }]}>Kepala Keluarga</Text>
                         </View>
                       )}
                     </View>
@@ -719,7 +725,12 @@ export default function ProfilScreen() {
         onClose={() => setShowEditModal(false)}
         targetMember={selectedEditMember}
         currentUser={user}
-        onSuccess={refreshData}
+        onSuccess={async (updated) => {
+          if (updated && (updated.nik === user?.nik || updated.id === user?.id)) {
+            setUser(updated);
+          }
+          await refreshData();
+        }}
       />
 
       {/* MODAL UNGGAH 2 BERKAS VERIFIKASI (KTP & SWAFOTO) */}
@@ -1318,6 +1329,10 @@ const styles = StyleSheet.create({
   familyIconBoxSelf: {
     backgroundColor: Colors.bento.hero.bg,
     borderColor: Colors.bento.hero.border,
+  },
+  familyIconBoxHead: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
   },
   selfBadge: {
     backgroundColor: Colors.bento.hero.bg,

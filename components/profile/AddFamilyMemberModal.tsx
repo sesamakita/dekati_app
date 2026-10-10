@@ -22,7 +22,14 @@ import { Citizen } from '@/store/mockData';
 import { api } from '@/services/api';
 import { useAlert } from '@/context/AlertContext';
 
-const ROLE_OPTIONS = ['Istri', 'Anak', 'Orang Tua', 'Mertua', 'Famili Lain'];
+const ROLE_OPTIONS = [
+  'Kepala Keluarga',
+  'Istri',
+  'Anak',
+  'Orang Tua',
+  'Mertua',
+  'Famili Lain',
+];
 const JOB_OPTIONS = [
   'Pelajar/Mahasiswa',
   'Karyawan Swasta',

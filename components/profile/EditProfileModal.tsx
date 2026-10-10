@@ -45,7 +45,7 @@ export interface EditProfileModalProps {
   onClose: () => void;
   targetMember: Citizen | null;
   currentUser: Citizen | null;
-  onSuccess: () => Promise<void> | void;
+  onSuccess: (updated?: Citizen) => Promise<void> | void;
 }
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({
@@ -129,7 +129,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           type: 'success',
         });
         onClose();
-        await onSuccess();
+        await onSuccess(res.data);
       } else {
         showAlert({
           title: 'Gagal Menyimpan',

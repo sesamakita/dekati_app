@@ -38,6 +38,7 @@ export default function RegisterScreen() {
   const [noKk, setNoKk] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [statusKeluarga, setStatusKeluarga] = useState('Kepala Keluarga');
   const [loading, setLoading] = useState(false);
 
   // Wilayah Desa states
@@ -358,6 +359,7 @@ export default function RegisterScreen() {
         phone: phone.trim(),
         password: password.trim(),
         no_kk: noKk.trim() || undefined,
+        status_keluarga: statusKeluarga,
         village_name: villageName || undefined,
         village_code: villageCode || undefined,
         district: selectedDistrict ? toTitleCase(selectedDistrict.name) : undefined,
@@ -463,6 +465,47 @@ export default function RegisterScreen() {
                 value={noKk}
                 onChangeText={setNoKk}
               />
+            </View>
+
+            {/* Hubungan dalam Keluarga */}
+            <View style={styles.inputGroup}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <Text style={styles.inputLabel}>Hubungan dalam Keluarga</Text>
+                <Text style={{ fontSize: 11, color: Colors.textMuted, fontFamily: Fonts.medium }}>
+                  Peran pendaftar di KK
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {['Kepala Keluarga', 'Anak', 'Istri', 'Famili Lain'].map((role) => (
+                  <TouchableOpacity
+                    key={role}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: 10,
+                      backgroundColor: statusKeluarga === role ? Colors.primaryDark : '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: statusKeluarga === role ? Colors.primaryDark : '#E2E8F0',
+                    }}
+                    onPress={() => setStatusKeluarga(role)}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: statusKeluarga === role ? Fonts.bold : Fonts.medium,
+                        color: statusKeluarga === role ? '#FFFFFF' : Colors.textPrimary,
+                      }}
+                    >
+                      {role}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {statusKeluarga === 'Anak' && (
+                <Text style={{ fontSize: 11, color: Colors.secondary, fontFamily: Fonts.medium, marginTop: 5 }}>
+                  * Anda dapat menambahkan Ayah/Ibu sebagai Kepala Keluarga setelah akun selesai dibuat.
+                </Text>
+              )}
             </View>
 
             {/* Pemilihan Wilayah Desa */}
