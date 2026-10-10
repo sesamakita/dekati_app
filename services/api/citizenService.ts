@@ -4,6 +4,30 @@ import { auth, RegisterParams } from '../auth';
 import { uploadImageToSupabase } from '../storage';
 import { mockUser, Citizen } from '@/store/mockData';
 
+function normalizeIsoDate(input?: string | null): string {
+  if (!input) return '1980-01-01';
+  const clean = String(input).trim();
+  if (!clean) return '1980-01-01';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+
+  const dmyMatch = clean.match(/^(\d{1,2})[\/\-\.\s](\d{1,2})[\/\-\.\s](\d{4})$/);
+  if (dmyMatch) {
+    const [, d, m, y] = dmyMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  const ymdMatch = clean.match(/^(\d{4})[\/\-\.\s](\d{1,2})[\/\-\.\s](\d{1,2})$/);
+  if (ymdMatch) {
+    const [, y, m, d] = ymdMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return '1980-01-01';
+}
+
 class CitizenService {
   private currentCitizen: Citizen = mockUser;
   private localFamilyMembers: Citizen[] = [];
@@ -249,7 +273,12 @@ class CitizenService {
     }
 
     const current = await this.getCurrentUser();
-    const noKk = current.no_kk || '';
+    const resolvedNoKk = (current.no_kk || '').trim() || '3201010000000001';
+    const resolvedRt = (current.rt || '').trim() || '01';
+    const resolvedRw = (current.rw || '').trim() || '01';
+    const resolvedDusun = (current.dusun || '').trim() || 'Dusun';
+    const resolvedAlamat = (current.alamat_lengkap || '').trim() || 'Alamat Domisili Warga';
+    const normalizedBirthDate = normalizeIsoDate(payload.tanggal_lahir);
 
     let cloudPhotoPath = payload.foto_kk_path || '';
     if (cloudPhotoPath && !cloudPhotoPath.startsWith('http://') && !cloudPhotoPath.startsWith('https://') && !cloudPhotoPath.startsWith('data:')) {
@@ -258,18 +287,18 @@ class CitizenService {
 
     const insertPayload: any = {
       nik: cleanNik,
-      no_kk: noKk || '3201010000000001',
+      no_kk: resolvedNoKk,
       nama_lengkap: cleanNama,
       jenis_kelamin: payload.jenis_kelamin || 'L',
-      status_dalam_keluarga: payload.status_keluarga || null,
-      tanggal_lahir: payload.tanggal_lahir?.trim() || null,
-      pekerjaan: payload.pekerjaan?.trim() || null,
-      rt: current.rt?.trim() || '01',
-      rw: current.rw?.trim() || '01',
-      dusun: current.dusun?.trim() || 'Dusun',
-      alamat_lengkap: current.alamat_lengkap?.trim() || 'Alamat Domisili Warga',
+      status_dalam_keluarga: payload.status_keluarga || 'Anggota',
+      tanggal_lahir: normalizedBirthDate,
+      pekerjaan: payload.pekerjaan?.trim() || 'Belum/Tidak Bekerja',
+      rt: resolvedRt,
+      rw: resolvedRw,
+      dusun: resolvedDusun,
+      alamat_lengkap: resolvedAlamat,
       phone_number: payload.phone_number?.trim() || null,
-      foto_kk_path: cloudPhotoPath,
+      foto_kk_path: cloudPhotoPath || null,
       is_verified: false,
     };
 
@@ -284,15 +313,15 @@ class CitizenService {
         const newCitizen: Citizen = {
           id: data.id,
           nik: data.nik,
-          no_kk: data.no_kk || noKk || '',
+          no_kk: data.no_kk || resolvedNoKk,
           nama_lengkap: data.nama_lengkap,
           jenis_kelamin: (data.jenis_kelamin as 'L' | 'P') || payload.jenis_kelamin,
           status_keluarga: data.status_dalam_keluarga || payload.status_keluarga || '',
-          tanggal_lahir: data.tanggal_lahir || payload.tanggal_lahir || '',
+          tanggal_lahir: data.tanggal_lahir || normalizedBirthDate,
           pekerjaan: data.pekerjaan || payload.pekerjaan || '',
-          rt: data.rt || current.rt || '',
-          rw: data.rw || current.rw || '',
-          dusun: data.dusun || current.dusun || '',
+          rt: data.rt || resolvedRt,
+          rw: data.rw || resolvedRw,
+          dusun: data.dusun || resolvedDusun,
           is_verified: false,
           verification_status: 'pending',
           foto_kk_path: data.foto_kk_path || cloudPhotoPath,
@@ -306,31 +335,57 @@ class CitizenService {
         if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
           return { success: false, message: 'NIK tersebut sudah terdaftar dalam sistem kependudukan desa.' };
         }
-        console.warn('[Dekati Mobile] addFamilyMember Supabase error:', error);
+        console.error('[Dekati Mobile] addFamilyMember Supabase error:', error.message, error.details);
+
+        // Safe retry without photo if photo caused payload constraint error
+        if (insertPayload.foto_kk_path) {
+          const retryPayload = { ...insertPayload, foto_kk_path: null };
+          const { data: retryData, error: retryError } = await supabase
+            .from('citizens')
+            .insert([retryPayload])
+            .select('*')
+            .single();
+
+          if (!retryError && retryData) {
+            const newCitizen: Citizen = {
+              id: retryData.id,
+              nik: retryData.nik,
+              no_kk: retryData.no_kk || resolvedNoKk,
+              nama_lengkap: retryData.nama_lengkap,
+              jenis_kelamin: (retryData.jenis_kelamin as 'L' | 'P') || payload.jenis_kelamin,
+              status_keluarga: retryData.status_dalam_keluarga || payload.status_keluarga || '',
+              tanggal_lahir: retryData.tanggal_lahir || normalizedBirthDate,
+              pekerjaan: retryData.pekerjaan || payload.pekerjaan || '',
+              rt: retryData.rt || resolvedRt,
+              rw: retryData.rw || resolvedRw,
+              dusun: retryData.dusun || resolvedDusun,
+              is_verified: false,
+              verification_status: 'pending',
+              foto_kk_path: cloudPhotoPath,
+              document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
+            };
+            this.localFamilyMembers.push(newCitizen);
+            return { success: true, data: newCitizen };
+          }
+        }
+
+        return {
+          success: false,
+          message: `Gagal mendaftarkan anggota ke database desa: ${error.message || 'Format data belum sesuai'}`
+        };
       }
     } catch (err: any) {
-      console.warn('[Dekati Mobile] addFamilyMember exception:', err);
+      console.error('[Dekati Mobile] addFamilyMember exception:', err);
+      return {
+        success: false,
+        message: err?.message || 'Terjadi kendala saat mendaftarkan anggota keluarga ke server desa.'
+      };
     }
 
-    const localCitizen: Citizen = {
-      id: 'cit_' + cleanNik,
-      nik: cleanNik,
-      no_kk: noKk,
-      nama_lengkap: cleanNama,
-      jenis_kelamin: payload.jenis_kelamin,
-      status_keluarga: payload.status_keluarga || '',
-      tanggal_lahir: payload.tanggal_lahir || '',
-      pekerjaan: payload.pekerjaan || '',
-      rt: current.rt || '',
-      rw: current.rw || '',
-      dusun: current.dusun || '',
-      is_verified: false,
-      verification_status: 'pending',
-      foto_kk_path: cloudPhotoPath,
-      document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
+    return {
+      success: false,
+      message: 'Gagal menambahkan anggota keluarga.'
     };
-    this.localFamilyMembers.push(localCitizen);
-    return { success: true, data: localCitizen };
   }
 
   async updateFamilyMemberDocument(citizenId: string, photoUri: string, base64?: string): Promise<{ success: boolean; message?: string }> {
