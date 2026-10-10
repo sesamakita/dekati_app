@@ -507,8 +507,23 @@ export default function ProfilScreen() {
                       </TouchableOpacity>
 
                       {isSelf ? (
-                        <View style={styles.familyBadge}>
-                          <Text style={styles.familyBadgeText}>Kepala KK</Text>
+                        <View
+                          style={[
+                            styles.familyBadge,
+                            !isHeadOfFamily && {
+                              backgroundColor: Colors.surfaceBorder,
+                              borderColor: '#CBD5E1',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.familyBadgeText,
+                              !isHeadOfFamily && { color: Colors.textSecondary },
+                            ]}
+                          >
+                            {isHeadOfFamily ? 'Kepala KK' : 'Akun Utama'}
+                          </Text>
                         </View>
                       ) : (
                         <TouchableOpacity

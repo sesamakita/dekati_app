@@ -81,7 +81,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       setEditNik(targetMember.nik || '');
       setEditNama(targetMember.nama_lengkap || '');
       setEditNoKk(targetMember.no_kk || currentUser?.no_kk || '');
-      setEditRole(targetMember.status_keluarga || 'Kepala Keluarga');
+      setEditRole(targetMember.status_keluarga || (targetMember as any).status_dalam_keluarga || 'Kepala Keluarga');
       setEditGender((targetMember.jenis_kelamin as 'L' | 'P') || 'L');
       setEditBirthPlace(targetMember.tempat_lahir || '');
       setEditBirthDate(targetMember.tanggal_lahir || '');
