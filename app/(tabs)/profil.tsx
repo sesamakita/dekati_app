@@ -19,6 +19,7 @@ import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
+import { supabase } from '@/services/supabase';
 import { Citizen } from '@/store/mockData';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -77,6 +78,40 @@ export default function ProfilScreen() {
       setUser(authUser);
     }
   }, [authUser]);
+
+  // Realtime subscription agar status keluarga dan berkas langsung ter-update live tanpa manual refresh
+  useEffect(() => {
+    if (!user?.nik && !user?.no_kk) return;
+
+    let subChannel: any = null;
+    try {
+      const userNoKk = (user.no_kk || '').trim();
+      subChannel = supabase
+        .channel(`profil-realtime-family-${user.nik || user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'citizens' },
+          async (payload) => {
+            const row = payload.new as any;
+            if (!row) return;
+            const isSelf = row.nik === user.nik || row.id === user.id;
+            const isFamily = Boolean(userNoKk && row.no_kk && row.no_kk.trim() === userNoKk);
+
+            if (isSelf || isFamily) {
+              console.log('[ProfilScreen] Realtime update diterima untuk anggota:', row.nama_lengkap, row.is_verified);
+              await refreshData();
+            }
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('[ProfilScreen] Realtime error:', err);
+    }
+
+    return () => {
+      if (subChannel) supabase.removeChannel(subChannel);
+    };
+  }, [user?.nik, user?.no_kk, user?.id]);
 
   const maskedNik = (nik?: string) => {
     if (!nik) return '----------------';

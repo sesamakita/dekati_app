@@ -102,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let citChannel: any = null;
     try {
+      const userNoKk = (user.no_kk || '').trim();
       citChannel = supabase
         .channel(`mobile-realtime-citizen-${user.id || user.nik}`)
         .on(
@@ -110,8 +111,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           async (payload) => {
             if (payload.new) {
               const row = payload.new as any;
-              if (row.id === user.id || row.nik === user.nik) {
-                console.log('[AuthContext] Menerima update status warga dari server:', row.is_verified, row.verified_by);
+              const isUserMatch = row.id === user.id || row.nik === user.nik;
+              const isFamilyMatch = Boolean(userNoKk && row.no_kk && row.no_kk.trim() === userNoKk);
+
+              if (isUserMatch || isFamilyMatch) {
+                console.log('[AuthContext] Menerima update status warga/keluarga dari server:', row.nik, row.is_verified);
                 const fresh = await citizenService.refreshCitizenFromDatabase();
                 if (fresh) {
                   setUser(fresh);
@@ -131,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       if (citChannel) supabase.removeChannel(citChannel);
     };
-  }, [user?.id, user?.nik]);
+  }, [user?.id, user?.nik, user?.no_kk]);
 
   const login = async (identifier: string, password: string): Promise<CitizenSession> => {
     setIsLoading(true);

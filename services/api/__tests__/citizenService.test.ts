@@ -34,14 +34,15 @@ describe('CitizenService Validation & Family Management', () => {
   });
 
   it('should successfully add valid family member locally', async () => {
+    const testNik = `3201${Date.now().toString().slice(-12)}`;
     const res = await citizenService.addFamilyMember({
-      nik: '3201123456780099',
+      nik: testNik,
       nama_lengkap: 'Siti Rahmawati',
       jenis_kelamin: 'P',
       status_keluarga: 'Istri'
     });
     expect(res.success).toBe(true);
-    expect(res.data?.nik).toBe('3201123456780099');
+    expect(res.data?.nik).toBe(testNik);
     expect(res.data?.nama_lengkap).toBe('Siti Rahmawati');
   }, 15000);
 });
