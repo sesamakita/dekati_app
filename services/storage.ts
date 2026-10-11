@@ -42,7 +42,8 @@ let bucketNotFoundNotified = false;
 export async function uploadImageToSupabase(
   localUri: string,
   folder: 'citizens' | 'letters' | 'complaints' = 'citizens',
-  base64String?: string | null
+  base64String?: string | null,
+  docType?: string | null
 ): Promise<string> {
   if (!localUri) return '';
 
@@ -54,7 +55,9 @@ export async function uploadImageToSupabase(
   const cleanExt = localUri.split('.').pop()?.toLowerCase() || 'jpg';
   const ext = ['jpg', 'jpeg', 'png', 'webp'].includes(cleanExt) ? cleanExt : 'jpg';
   const contentType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  const prefix = docType ? docType.toLowerCase().replace(/[^a-z0-9]/g, '_') : '';
+  const filePrefix = prefix ? `${prefix}_` : '';
+  const fileName = `${folder}/${filePrefix}${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
 
   try {
     let fileBuffer: ArrayBuffer | Uint8Array;
@@ -79,7 +82,9 @@ export async function uploadImageToSupabase(
         .getPublicUrl(fileName);
 
       if (publicUrlData?.publicUrl) {
-        return publicUrlData.publicUrl;
+        return docType
+          ? `${publicUrlData.publicUrl}?doctype=${encodeURIComponent(docType)}`
+          : publicUrlData.publicUrl;
       }
     } else {
       const msg = error?.message || '';

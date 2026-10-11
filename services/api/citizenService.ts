@@ -260,6 +260,7 @@ class CitizenService {
     pekerjaan?: string;
     phone_number?: string;
     foto_kk_path?: string;
+    foto_ktp_path?: string;
     document_type?: string;
   }): Promise<{ success: boolean; data?: Citizen; message?: string }> {
     const cleanNik = payload.nik.trim();
@@ -280,9 +281,13 @@ class CitizenService {
     const resolvedAlamat = (current.alamat_lengkap || '').trim() || 'Alamat Domisili Warga';
     const normalizedBirthDate = normalizeIsoDate(payload.tanggal_lahir);
 
-    let cloudPhotoPath = payload.foto_kk_path || '';
+    const docType = payload.document_type?.trim() || '';
+    const isKtp = docType.toLowerCase().includes('ktp') || Boolean(payload.foto_ktp_path);
+    const rawPhoto = payload.foto_ktp_path || payload.foto_kk_path || '';
+
+    let cloudPhotoPath = rawPhoto;
     if (cloudPhotoPath && !cloudPhotoPath.startsWith('http://') && !cloudPhotoPath.startsWith('https://') && !cloudPhotoPath.startsWith('data:')) {
-      cloudPhotoPath = await uploadImageToSupabase(cloudPhotoPath, 'citizens', (payload as any).base64);
+      cloudPhotoPath = await uploadImageToSupabase(cloudPhotoPath, 'citizens', (payload as any).base64, docType || (isKtp ? 'KTP-el' : 'Dokumen'));
     }
 
     const insertPayload: any = {
@@ -298,7 +303,8 @@ class CitizenService {
       dusun: resolvedDusun,
       alamat_lengkap: resolvedAlamat,
       phone_number: payload.phone_number?.trim() || null,
-      foto_kk_path: cloudPhotoPath || null,
+      foto_ktp_path: isKtp ? (cloudPhotoPath || null) : null,
+      foto_kk_path: !isKtp ? (cloudPhotoPath || null) : null,
       is_verified: false,
     };
 
@@ -324,8 +330,9 @@ class CitizenService {
           dusun: data.dusun || resolvedDusun,
           is_verified: false,
           verification_status: 'pending',
-          foto_kk_path: data.foto_kk_path || cloudPhotoPath,
-          document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
+          foto_ktp_path: data.foto_ktp_path || (isKtp ? cloudPhotoPath : undefined),
+          foto_kk_path: data.foto_kk_path || (!isKtp ? cloudPhotoPath : undefined),
+          document_type: payload.document_type || (isKtp ? 'KTP-el' : 'Foto Kartu Keluarga (KK)'),
         };
         this.localFamilyMembers.push(newCitizen);
         return { success: true, data: newCitizen };
@@ -338,8 +345,8 @@ class CitizenService {
         console.error('[Dekati Mobile] addFamilyMember Supabase error:', error.message, error.details);
 
         // Safe retry without photo if photo caused payload constraint error
-        if (insertPayload.foto_kk_path) {
-          const retryPayload = { ...insertPayload, foto_kk_path: null };
+        if (insertPayload.foto_ktp_path || insertPayload.foto_kk_path) {
+          const retryPayload = { ...insertPayload, foto_ktp_path: null, foto_kk_path: null };
           const { data: retryData, error: retryError } = await supabase
             .from('citizens')
             .insert([retryPayload])
@@ -361,8 +368,9 @@ class CitizenService {
               dusun: retryData.dusun || resolvedDusun,
               is_verified: false,
               verification_status: 'pending',
-              foto_kk_path: cloudPhotoPath,
-              document_type: payload.document_type || 'Foto Kartu Keluarga (KK)',
+              foto_ktp_path: isKtp ? cloudPhotoPath : undefined,
+              foto_kk_path: !isKtp ? cloudPhotoPath : undefined,
+              document_type: payload.document_type || (isKtp ? 'KTP-el' : 'Foto Kartu Keluarga (KK)'),
             };
             this.localFamilyMembers.push(newCitizen);
             return { success: true, data: newCitizen };

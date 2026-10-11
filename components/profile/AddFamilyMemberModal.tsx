@@ -157,6 +157,8 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
 
     setSavingMember(true);
     try {
+      const isKtp = selectedDocType === 'KTP-el' || selectedDocType.toLowerCase().includes('ktp');
+
       const res = await api.addFamilyMember({
         nik: newNik.trim(),
         nama_lengkap: newNama.trim(),
@@ -164,7 +166,8 @@ export const AddFamilyMemberModal: React.FC<AddFamilyMemberModalProps> = ({
         status_keluarga: newPeran,
         tanggal_lahir: newBirthDate.trim() || '2005-01-01',
         pekerjaan: newJob.trim() || 'Pelajar/Belum Bekerja',
-        foto_kk_path: docPhotoUri || undefined,
+        foto_ktp_path: isKtp ? (docPhotoUri || undefined) : undefined,
+        foto_kk_path: !isKtp ? (docPhotoUri || undefined) : undefined,
         document_type: selectedDocType,
         base64: docPhotoBase64 || undefined,
       } as any);
