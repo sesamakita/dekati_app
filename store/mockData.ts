@@ -73,6 +73,8 @@ export interface LetterRequest {
   purpose: string;
   official_number?: string;
   qr_token?: string;
+  qr_url?: string;
+  citizen_address?: string;
   created_at: string;
   timeline: { title: string; time: string; done: boolean; actor?: string }[];
   attachments?: { name: string; url: string }[];

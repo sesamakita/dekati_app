@@ -8,27 +8,40 @@ import {
   Alert,
   Linking,
   RefreshControl,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { Colors } from '@/constants/Colors';
 import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
 import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
+import { villageService } from '@/services/api/villageService';
 import { supabase } from '@/services/supabase';
 import { Header } from '@/components/common/Header';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { LetterRequest } from '@/store/mockData';
+import { LetterRequest, VillageProfile } from '@/store/mockData';
 import { useAlert } from '@/context/AlertContext';
 
 export default function LetterDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { showAlert } = useAlert();
   const [request, setRequest] = useState<LetterRequest | null>(null);
+  const [villageProfile, setVillageProfile] = useState<VillageProfile | null>(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    villageService.getVillageProfile().then((p) => {
+      if (p) setVillageProfile(p);
+    });
+  }, []);
 
   const fetchDetail = useCallback(async () => {
     if (id) {
@@ -87,18 +100,316 @@ export default function LetterDetailScreen() {
 
   const isCompleted = request.status === 'signed' || request.status === 'completed';
 
-  const handleDownload = () => {
-    showAlert({
-      title: 'Unduh Surat PDF',
-      message: `Surat resmi "${request.letter_name}" dengan Nomor ${request.official_number || 'Registrasi'} berhasil diunduh ke penyimpanan ponsel Anda.`,
-      type: 'success',
-      confirmText: 'Buka Dokumen',
-    });
+  const verificationUrl =
+    request.qr_url ||
+    (request.qr_token
+      ? `${Config.webPortalUrl}/#/verify/${request.qr_token}`
+      : `${Config.webPortalUrl}/#/verify/${request.tracking_number}`);
+
+  const handleDownload = async () => {
+    try {
+      setIsGeneratingPdf(true);
+
+      const vName = villageProfile?.name || Config.villageName || 'Desa';
+      const vDistrict = villageProfile?.district || '';
+      const vRegency = villageProfile?.regency || '';
+      const vAddress = villageProfile?.office_address || 'Alamat Kantor Pemerintahan Desa';
+      const vPhone = villageProfile?.office_phone ? `Telp: ${villageProfile.office_phone}` : '';
+      const vEmail = villageProfile?.office_email || 'sekretariat@desa.id';
+      const kades = request.signed_by_name || villageProfile?.kades_name || 'Kepala Desa';
+      const officialNo = request.official_number || request.tracking_number;
+      const todayDateStr = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const qrCodeImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+        verificationUrl
+      )}`;
+
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${request.letter_name} - ${request.citizen_name}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 20mm;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      color: #111827;
+      padding: 10px 20px;
+      line-height: 1.5;
+      background-color: #ffffff;
+    }
+    .kop {
+      text-align: center;
+      border-bottom: 3px double #111827;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+    .kop h4 {
+      margin: 0;
+      font-size: 13px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-family: Arial, sans-serif;
+    }
+    .kop h3 {
+      margin: 2px 0;
+      font-size: 15px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-family: Arial, sans-serif;
+    }
+    .kop h2 {
+      margin: 2px 0;
+      font-size: 19px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-family: Arial, sans-serif;
+    }
+    .kop p {
+      margin: 2px 0 0 0;
+      font-size: 11px;
+      font-family: Arial, sans-serif;
+      color: #4b5563;
+    }
+    .title-box {
+      text-align: center;
+      margin: 20px 0 24px 0;
+    }
+    .title-box h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: bold;
+      text-decoration: underline;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .title-box p {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      font-family: Arial, sans-serif;
+      font-weight: 600;
+      color: #374151;
+    }
+    .content {
+      font-size: 13px;
+      font-family: Arial, sans-serif;
+      text-align: justify;
+      color: #1f2937;
+    }
+    .content p {
+      margin: 10px 0;
+      line-height: 1.6;
+    }
+    .bio-table {
+      margin: 14px 0 14px 20px;
+      width: 95%;
+    }
+    .bio-table td {
+      padding: 3px 6px;
+      font-size: 12.5px;
+      vertical-align: top;
+    }
+    .bio-label {
+      width: 170px;
+      color: #4b5563;
+    }
+    .bio-colon {
+      width: 15px;
+    }
+    .bio-val {
+      color: #111827;
+      font-weight: 600;
+    }
+    .footer-section {
+      margin-top: 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .tte-box {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      max-width: 290px;
+      font-family: Arial, sans-serif;
+    }
+    .tte-box img {
+      width: 72px;
+      height: 72px;
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      padding: 2px;
+      border-radius: 6px;
+    }
+    .tte-text {
+      font-size: 9.5px;
+      color: #4b5563;
+      line-height: 1.35;
+    }
+    .tte-badge {
+      font-weight: bold;
+      color: #065f46;
+      margin-bottom: 2px;
+      font-size: 10px;
+    }
+    .tte-token {
+      font-family: monospace;
+      font-size: 8.5px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .signer-box {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      min-width: 200px;
+    }
+    .signer-date {
+      font-size: 12px;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    .signer-role {
+      font-size: 12px;
+      font-weight: bold;
+      color: #111827;
+      margin-bottom: 50px;
+    }
+    .signer-name {
+      font-size: 13px;
+      font-weight: bold;
+      text-decoration: underline;
+      color: #111827;
+      margin: 0;
+    }
+    .signer-nip {
+      font-size: 10px;
+      color: #6b7280;
+      margin: 2px 0 0 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="kop">
+    <h4>${vRegency ? `PEMERINTAH ${vRegency.toUpperCase()}` : 'PEMERINTAH KABUPATEN'}</h4>
+    <h3>${vDistrict ? `KECAMATAN ${vDistrict.toUpperCase()}` : 'KECAMATAN'}</h3>
+    <h2>PEMERINTAH ${vName.toUpperCase()}</h2>
+    <p>${[vAddress, vPhone].filter(Boolean).join(' • ')}</p>
+    <p>Email: ${vEmail}</p>
+  </div>
+
+  <div class="title-box">
+    <h3>${request.letter_name}</h3>
+    <p>Nomor: ${officialNo}</p>
+  </div>
+
+  <div class="content">
+    <p>
+      Yang bertanda tangan di bawah ini, Kepala ${vName}, ${vDistrict ? `Kecamatan ${vDistrict}, ` : ''}${vRegency ? `${vRegency}, ` : ''}menerangkan dengan sebenarnya bahwa:
+    </p>
+
+    <table class="bio-table">
+      <tr>
+        <td class="bio-label">Nama Lengkap</td>
+        <td class="bio-colon">:</td>
+        <td class="bio-val">${request.citizen_name}</td>
+      </tr>
+      <tr>
+        <td class="bio-label">NIK</td>
+        <td class="bio-colon">:</td>
+        <td class="bio-val" style="font-family: monospace;">${request.citizen_nik}</td>
+      </tr>
+      <tr>
+        <td class="bio-label">Alamat Kependudukan</td>
+        <td class="bio-colon">:</td>
+        <td class="bio-val">${request.citizen_address || 'Wilayah Desa'}</td>
+      </tr>
+      <tr>
+        <td class="bio-label">Keperluan</td>
+        <td class="bio-colon">:</td>
+        <td class="bio-val" style="font-style: italic;">${request.purpose}</td>
+      </tr>
+    </table>
+
+    <p>
+      Adalah benar-benar warga yang bertempat tinggal secara sah di wilayah ${vName} dan tercatat dalam data kependudukan resmi desa. Sepanjang sepengetahuan kami, yang bersangkutan memiliki catatan permohonan sesuai dengan maksud dan tujuan di atas.
+    </p>
+
+    <p>
+      Demikian surat keterangan ini dibuat dengan sebenarnya agar dapat dipergunakan sebagaimana mestinya oleh yang berkepentingan.
+    </p>
+  </div>
+
+  <div class="footer-section">
+    <div class="tte-box">
+      <img src="${qrCodeImgSrc}" alt="QR TTE" />
+      <div class="tte-text">
+        <div class="tte-badge">✓ TTE Sah Resmi Desa</div>
+        Dokumen ini telah disahkan secara digital dengan Tanda Tangan Elektronik resmi.
+        <div class="tte-token">ID: ${(request.qr_token || request.tracking_number).slice(0, 20)}</div>
+      </div>
+    </div>
+
+    <div class="signer-box">
+      <div class="signer-date">${vName.replace(/^(Desa|Kelurahan)\s+/i, '')}, ${todayDateStr}</div>
+      <div class="signer-role">Kepala ${vName}</div>
+      <div class="signer-name">${kades}</div>
+      <div class="signer-nip">NIP. 19740510 199903 1 004</div>
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
+      const { uri } = await Print.printToFileAsync({ html });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          UTI: '.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: `Unduh Surat Resmi ${request.letter_name}`,
+        });
+      } else {
+        showAlert({
+          title: 'Surat PDF Berhasil Dibuat',
+          message: `Surat resmi disimpan di: ${uri}`,
+          type: 'success',
+        });
+      }
+    } catch (err: any) {
+      console.error('[LetterDetailScreen] handleDownload error:', err);
+      showAlert({
+        title: 'Gagal Mengunduh Dokumen',
+        message: err?.message || 'Terjadi kesalahan saat membuat dokumen PDF.',
+        type: 'danger',
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleShareWa = () => {
     const text = encodeURIComponent(
-      `Surat resmi ${request.letter_name} atas nama ${request.citizen_name} (No: ${request.tracking_number}) telah terbit dengan verifikasi QR TTE resmi Pemerintah ${Config.villageName}.`
+      `*Surat Resmi Desa - ${request.letter_name}*\n\n` +
+      `Nomor Surat: ${request.official_number || request.tracking_number}\n` +
+      `Nama Warga: ${request.citizen_name}\n` +
+      `NIK: ${request.citizen_nik}\n` +
+      `Keperluan: ${request.purpose}\n\n` +
+      `Surat telah disahkan secara digital dengan Tanda Tangan Elektronik (TTE QR) resmi Pemerintah ${villageProfile?.name || Config.villageName || 'Desa'}.\n\n` +
+      `Cek keabsahan dokumen:\n${verificationUrl}`
     );
     Linking.openURL(`https://wa.me/?text=${text}`);
   };
@@ -235,22 +546,48 @@ export default function LetterDetailScreen() {
                 </View>
               </View>
 
-              {/* QR Mockup Visual */}
+              {/* QR Code Scannable Visual */}
               <View style={styles.qrContainer}>
                 <View style={styles.qrVisualBox}>
-                  <Ionicons name="qr-code-outline" size={120} color={Colors.primaryDark} />
-                  <Text style={styles.qrCodeToken}>TOKEN: {request.qr_token || 'VALID-DEKATI-2026'}</Text>
+                  <Image
+                    source={{
+                      uri: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                        verificationUrl
+                      )}`,
+                    }}
+                    style={styles.qrImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.qrCodeToken}>TOKEN: {request.qr_token || request.tracking_number}</Text>
                 </View>
                 <Text style={styles.qrNotice}>
-                  Pindai QR Code ini untuk mengecek keaslian surat langsung di basis data resmi desa:
+                  Pindai QR Code ini menggunakan kamera HP untuk memeriksa keaslian surat langsung pada portal resmi desa:
                 </Text>
-                <Text style={styles.qrUrl}>https://layanan.desa.id/v/s/{request.qr_token}</Text>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(verificationUrl)}>
+                  <Text style={styles.qrUrl} numberOfLines={2}>
+                    {verificationUrl}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* Action Buttons */}
-              <TouchableOpacity style={styles.downloadBtn} activeOpacity={0.85} onPress={handleDownload}>
-                <Ionicons name="cloud-download-outline" size={18} color="#FFFFFF" />
-                <Text style={styles.downloadBtnText}>Unduh Surat Resmi (PDF)</Text>
+              <TouchableOpacity
+                style={[styles.downloadBtn, isGeneratingPdf && { opacity: 0.7 }]}
+                activeOpacity={0.85}
+                onPress={handleDownload}
+                disabled={isGeneratingPdf}
+              >
+                {isGeneratingPdf ? (
+                  <>
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <Text style={styles.downloadBtnText}>Menyiapkan PDF Resmi...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.downloadBtnText}>Unduh Surat Resmi (PDF)</Text>
+                  </>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.shareBtn} activeOpacity={0.85} onPress={handleShareWa}>
@@ -466,18 +803,28 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   qrVisualBox: {
-    backgroundColor: Colors.background,
+    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: Spacing.radiusLg,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  qrImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 8,
   },
   qrCodeToken: {
     fontFamily: Fonts.bold,
     fontSize: 10,
     color: Colors.textMuted,
-    marginTop: 6,
+    marginTop: 8,
   },
   qrNotice: {
     fontFamily: Fonts.regular,
@@ -493,6 +840,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.primary,
     marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+    textDecorationLine: 'underline',
   },
   downloadBtn: {
     flexDirection: 'row',

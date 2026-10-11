@@ -9,6 +9,7 @@ import {
   LetterType,
   LetterRequest
 } from '@/store/mockData';
+import { Config } from '@/constants/Config';
 
 class LetterService {
   private localLetterRequests: LetterRequest[] = [...mockLetterRequests];
@@ -154,12 +155,17 @@ class LetterService {
           applicant_name: d.applicant_name,
           citizen_name: d.citizen_name,
           citizen_nik: d.citizen_nik,
+          citizen_address: d.citizen_address,
           status: d.status,
           purpose: d.purpose,
           official_number: d.letter_official_number,
           qr_token: d.qr_verification_token,
+          qr_url: d.qr_verification_url || (d.qr_verification_token ? `${Config.webPortalUrl}/#/verify/${d.qr_verification_token}` : undefined),
+          signed_by_name: d.signed_by_name,
+          rejection_reason: d.rejection_reason,
           created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
           timeline: this.formatTimelineSteps(d.timeline, d.status, d.created_at, d.letter_official_number, d.signed_by_name),
+          attachments: Array.isArray(d.attachments) ? d.attachments : []
         }));
 
         for (const c of cloudRequests) {
@@ -209,10 +215,14 @@ class LetterService {
           applicant_name: data.applicant_name,
           citizen_name: data.citizen_name,
           citizen_nik: data.citizen_nik,
+          citizen_address: data.citizen_address,
           status: data.status,
           purpose: data.purpose,
           official_number: data.letter_official_number,
           qr_token: data.qr_verification_token,
+          qr_url: data.qr_verification_url || (data.qr_verification_token ? `${Config.webPortalUrl}/#/verify/${data.qr_verification_token}` : undefined),
+          signed_by_name: data.signed_by_name,
+          rejection_reason: data.rejection_reason,
           created_at: data.created_at ? new Date(data.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
           timeline: this.formatTimelineSteps(data.timeline, data.status, data.created_at, data.letter_official_number, data.signed_by_name),
           attachments: Array.isArray(data.attachments) ? data.attachments : []
