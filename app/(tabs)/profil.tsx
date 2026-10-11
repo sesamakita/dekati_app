@@ -567,7 +567,7 @@ export default function ProfilScreen() {
                           onPress={() => handlePreviewDocs(member)}
                         >
                           <Ionicons name="document-attach" size={13} color={Colors.primaryDark} />
-                          <Text style={styles.viewDocChipText}>Lihat Bukti Berkas</Text>
+                          <Text style={styles.viewDocChipText}>Lihat Berkas</Text>
                         </TouchableOpacity>
 
                         {!isVerified && (
@@ -598,9 +598,7 @@ export default function ProfilScreen() {
                       onPress={() => handlePreviewDocs(member)}
                     >
                       <Ionicons name="document-attach" size={13} color={Colors.primaryDark} />
-                      <Text style={styles.viewDocChipText}>
-                        Lihat {member.foto_ktp_path ? 'e-KTP' : 'Bukti Berkas'}
-                      </Text>
+                      <Text style={styles.viewDocChipText}>Lihat Berkas</Text>
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.noDocChip}>
