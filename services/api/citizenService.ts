@@ -398,19 +398,28 @@ class CitizenService {
 
   async updateFamilyMemberDocument(citizenId: string, photoUri: string, base64?: string): Promise<{ success: boolean; message?: string }> {
     let cloudPhotoUrl = photoUri;
+    const existing = this.localFamilyMembers.find(m => m.id === citizenId);
+    const isKtp = Boolean(existing?.foto_ktp_path) || (existing?.document_type || '').toLowerCase().includes('ktp');
+
     if (cloudPhotoUrl && !cloudPhotoUrl.startsWith('http://') && !cloudPhotoUrl.startsWith('https://') && !cloudPhotoUrl.startsWith('data:')) {
-      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'citizens', base64);
+      cloudPhotoUrl = await uploadImageToSupabase(cloudPhotoUrl, 'citizens', base64, isKtp ? 'KTP-el' : 'Dokumen');
     }
 
     try {
+      const updateData: any = {
+        is_verified: false,
+        verified_by: null,
+        updated_at: new Date().toISOString()
+      };
+      if (isKtp) {
+        updateData.foto_ktp_path = cloudPhotoUrl;
+      } else {
+        updateData.foto_kk_path = cloudPhotoUrl;
+      }
+
       const { error } = await supabase
         .from('citizens')
-        .update({
-          foto_kk_path: cloudPhotoUrl,
-          is_verified: false,
-          verified_by: null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', citizenId);
 
       if (error) {
@@ -424,7 +433,8 @@ class CitizenService {
     if (idx !== -1) {
       this.localFamilyMembers[idx] = {
         ...this.localFamilyMembers[idx],
-        foto_kk_path: cloudPhotoUrl,
+        foto_ktp_path: isKtp ? cloudPhotoUrl : this.localFamilyMembers[idx].foto_ktp_path,
+        foto_kk_path: !isKtp ? cloudPhotoUrl : this.localFamilyMembers[idx].foto_kk_path,
         is_verified: false,
         verification_status: 'pending',
         rejection_reason: undefined,

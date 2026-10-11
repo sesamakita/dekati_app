@@ -591,14 +591,16 @@ export default function ProfilScreen() {
                         <Text style={styles.attachDocsActionBtnText}>Lampirkan Foto KTP/KK</Text>
                       </TouchableOpacity>
                     )
-                  ) : member.foto_kk_path ? (
+                  ) : (member.foto_ktp_path || member.foto_kk_path) ? (
                     <TouchableOpacity
                       style={styles.viewDocChip}
                       activeOpacity={0.8}
                       onPress={() => handlePreviewDocs(member)}
                     >
                       <Ionicons name="document-attach" size={13} color={Colors.primaryDark} />
-                      <Text style={styles.viewDocChipText}>Lihat Bukti Berkas</Text>
+                      <Text style={styles.viewDocChipText}>
+                        Lihat {member.foto_ktp_path ? 'e-KTP' : 'Bukti Berkas'}
+                      </Text>
                     </TouchableOpacity>
                   ) : (
                     <View style={styles.noDocChip}>
