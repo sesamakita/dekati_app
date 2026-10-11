@@ -138,9 +138,89 @@ export interface VillageEvent {
   is_active?: boolean;
 }
 
-export const mockEmergencyContacts: EmergencyContact[] = [];
+export const mockEmergencyContacts: EmergencyContact[] = [
+  {
+    id: 'emg-1',
+    title: 'Ambulans Desa 24 Jam',
+    phone: '0812-3456-7890',
+    icon: 'car',
+    description: 'Layanan antar rujukan medis & persalinan darurat gratis warga',
+    order_index: 1,
+    is_active: true
+  },
+  {
+    id: 'emg-2',
+    title: 'Bhabinkamtibmas Polsek',
+    phone: '0813-9876-5432',
+    icon: 'shield',
+    description: 'Petugas kepolisian pembina kamtibmas & keamanan wilayah desa',
+    order_index: 2,
+    is_active: true
+  },
+  {
+    id: 'emg-3',
+    title: 'Babinsa Koramil',
+    phone: '0811-2233-4455',
+    icon: 'shield-checkmark',
+    description: 'Bintara pembina ketahanan wilayah & penanggulangan bencana',
+    order_index: 3,
+    is_active: true
+  },
+  {
+    id: 'emg-4',
+    title: 'Puskesmas / Bidan Desa',
+    phone: '0821-5566-7788',
+    icon: 'medkit',
+    description: 'Pemeriksaan darurat medis, posyandu & layanan ibu-anak',
+    order_index: 4,
+    is_active: true
+  },
+  {
+    id: 'emg-5',
+    title: 'Sekretariat Kantor Desa',
+    phone: '0251-876543',
+    icon: 'business',
+    description: 'Layanan informasi umum & pengaduan administrasi kantor desa',
+    order_index: 5,
+    is_active: true
+  }
+];
 
-export const mockVillageEvents: VillageEvent[] = [];
+export const mockVillageEvents: VillageEvent[] = [
+  {
+    id: 'evt-1',
+    title: 'Posyandu Balita & Lansia Dusun Mekar',
+    category: 'Kesehatan',
+    event_date: 'Kamis, 15 Okt 2026',
+    event_time: '08.30 - 11.30 WIB',
+    location: 'Pos RW 01 Kp. Sukamaju',
+    organizer: 'Kader Posyandu Melati',
+    description: 'Pemeriksaan rutin tumbuh kembang balita, imunisasi dasar lengkap, serta cek tensi dan gula darah gratis bagi warga lansia.',
+    is_active: true
+  },
+  {
+    id: 'evt-2',
+    title: 'Kerja Bakti Lingkungan & Normalisasi Drainase',
+    category: 'Lingkungan',
+    event_date: 'Minggu, 18 Okt 2026',
+    event_time: '07.00 - 10.00 WIB',
+    location: 'Saluran Drainase RT 01 - RT 04',
+    organizer: 'Karang Taruna & Satlinmas Desa',
+    description: 'Gotong royong warga membersihkan sedimentasi saluran air untuk mengantisipasi genangan air di musim penghujan.',
+    is_active: true
+  },
+  {
+    id: 'evt-3',
+    title: 'Musyawarah Perencanaan Pembangunan Desa (Musrenbangdes)',
+    category: 'Pemerintahan',
+    event_date: 'Rabu, 21 Okt 2026',
+    event_time: '09.00 - 12.30 WIB',
+    location: 'Aula Balai Desa',
+    organizer: 'BPD & Pemerintah Desa',
+    description: 'Penyusunan usulan prioritas program kerja pembangunan desa bersama ketua RT, RW, dan tokoh masyarakat.',
+    is_active: true
+  }
+];
 
 // Current User Initial State
 export const mockUser: Citizen = {
@@ -204,7 +284,30 @@ export const mockLetterRequests: LetterRequest[] = [];
 
 export const mockComplaints: Complaint[] = [];
 
-export const mockAnnouncements: Announcement[] = [];
+export const mockAnnouncements: Announcement[] = [
+  {
+    id: 'anc-1',
+    title: 'Pelayanan Administrasi Kependudukan Digital DEKATI Aktif 24 Jam',
+    category: 'Pemerintahan',
+    summary: 'Warga kini dapat mengajukan surat keterangan dan melacak statusnya langsung dari smartphone tanpa perlu antre di kantor desa.',
+    content: 'Pemerintah Desa resmi memberlakukan layanan digital DEKATI. Seluruh warga dapat mengajukan Surat Keterangan Tidak Mampu (SKTM), Surat Keterangan Usaha (SKU), dan surat resmi lainnya lengkap dengan tanda tangan elektronik QR Code. Silakan manfaatkan layanan ini dengan bijak demi efisiensi administrasi desa kita.',
+    date: 'Hari ini',
+    is_urgent: false,
+    author: 'Sekretariat Desa',
+    views: 145
+  },
+  {
+    id: 'anc-2',
+    title: 'Peringatan Kesiapsiagaan Cuaca Ekstrem & Pengecekan Pohon Rawan Tumbang',
+    category: 'Darurat',
+    summary: 'Warga dihimbau waspada terhadap hujan lebat dan angin kencang. Segera laporkan potensi pohon tumbang melalui menu Pengaduan.',
+    content: 'Berdasarkan peringatan dini BMKG, diperkirakan terjadi cuaca ekstrem dalam beberapa hari ke depan. Warga diharapkan memperhatikan kebersihan selokan di lingkungan masing-masing dan menghindari berteduh di bawah pohon rindang saat hujan deras. Jika terjadi keadaan darurat, segera hubungi kontak siaga desa.',
+    date: 'Kemarin',
+    is_urgent: true,
+    author: 'Satgas Siaga Bencana',
+    views: 210
+  }
+];
 
 export const mockApbdes = {
   fiscal_year: new Date().getFullYear(),

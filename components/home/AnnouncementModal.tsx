@@ -28,6 +28,7 @@ export interface AnnouncementModalProps {
   visible: boolean;
   announcement?: AnnouncementItem | null;
   isRead?: boolean;
+  initialExpanded?: boolean;
   onMarkAsRead?: (id: string) => void;
   onClose: () => void;
 }
@@ -36,10 +37,15 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   visible,
   announcement,
   isRead = false,
+  initialExpanded = false,
   onMarkAsRead,
   onClose,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
+
+  React.useEffect(() => {
+    setIsExpanded(initialExpanded);
+  }, [initialExpanded, visible]);
 
   const handleClose = () => {
     setIsExpanded(false);

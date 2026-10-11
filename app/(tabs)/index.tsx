@@ -26,6 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { EmergencyModal } from '@/components/home/EmergencyModal';
 import { EventDetailModal } from '@/components/home/EventDetailModal';
 import { AnnouncementModal } from '@/components/home/AnnouncementModal';
+import { AnnouncementsListModal } from '@/components/home/AnnouncementsListModal';
 
 // Key penyimpanan status pengumuman yang telah dibaca
 const STORAGE_KEY_READ_ANNOUNCEMENTS = '@dekatip_read_announcements';
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   const [selectedEvent, setSelectedEvent] = useState<VillageEvent | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [showAnnouncementsListModal, setShowAnnouncementsListModal] = useState(false);
   const [showUrgentModal, setShowUrgentModal] = useState(false);
   const [isUrgentExpanded, setIsUrgentExpanded] = useState(false);
   const [selectedNews, setSelectedNews] = useState<Announcement | null>(null);
@@ -224,6 +226,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.actionBtn}
             activeOpacity={0.75}
+            onPress={() => setShowAnnouncementsListModal(true)}
           >
             <Ionicons name="notifications-outline" size={19} color={Colors.textPrimary} />
             {hasUnreadAnnouncements && <View style={styles.notificationDot} />}
@@ -598,8 +601,7 @@ export default function HomeScreen() {
               style={[styles.bentoMiniCol, styles.bentoPurple]}
               activeOpacity={0.85}
               onPress={() => {
-                const targetEvent = villageEvents[0] || null;
-                setSelectedEvent(targetEvent);
+                setSelectedEvent(villageEvents.length === 1 ? villageEvents[0] : null);
                 setShowEventModal(true);
               }}
             >
@@ -608,10 +610,10 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.miniCardTitle}>Agenda Desa</Text>
               <Text style={styles.miniCardInfo} numberOfLines={1}>
-                {villageEvents[0]?.title || 'Belum ada agenda'}
+                {villageEvents[0]?.title || 'Agenda Kegiatan Desa'}
               </Text>
               <Text style={styles.miniCardDate} numberOfLines={1}>
-                {villageEvents[0]?.event_date || 'Jadwal akan diumumkan'}
+                {villageEvents[0]?.event_date || 'Lihat Jadwal Kegiatan'}
               </Text>
             </TouchableOpacity>
 
@@ -643,11 +645,30 @@ export default function HomeScreen() {
         contacts={emergencyContacts}
       />
 
-      {/* VILLAGE EVENT DETAIL MODAL */}
+      {/* VILLAGE EVENT DETAIL & LIST MODAL */}
       <EventDetailModal
-        visible={showEventModal && !!selectedEvent}
+        visible={showEventModal}
         event={selectedEvent}
-        onClose={() => setShowEventModal(false)}
+        events={villageEvents}
+        onClose={() => {
+          setShowEventModal(false);
+          setSelectedEvent(null);
+        }}
+      />
+
+      {/* ANNOUNCEMENTS LIST MODAL (DARI BELL NOTIFIKASI) */}
+      <AnnouncementsListModal
+        visible={showAnnouncementsListModal}
+        announcements={announcements}
+        readAnnouncementIds={readAnnouncementIds}
+        onSelectAnnouncement={(item) => {
+          setShowAnnouncementsListModal(false);
+          setSelectedNews(item);
+          markAsRead(item.id);
+          setIsUrgentExpanded(true);
+          setShowUrgentModal(true);
+        }}
+        onClose={() => setShowAnnouncementsListModal(false)}
       />
 
       {/* ANNOUNCEMENT POPUP / MODAL (UNTUK PENGUMUMAN PENTING & DETAIL KABAR DESA) */}
@@ -655,6 +676,7 @@ export default function HomeScreen() {
         visible={showUrgentModal && !!activeModalNews}
         announcement={activeModalNews}
         isRead={activeModalNews ? readAnnouncementIds.has(activeModalNews.id) : false}
+        initialExpanded={isUrgentExpanded}
         onMarkAsRead={markAsRead}
         onClose={handleCloseUrgentModal}
       />
