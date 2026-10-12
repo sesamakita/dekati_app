@@ -286,30 +286,7 @@ export const mockLetterRequests: LetterRequest[] = [];
 
 export const mockComplaints: Complaint[] = [];
 
-export const mockAnnouncements: Announcement[] = [
-  {
-    id: 'anc-1',
-    title: 'Pelayanan Administrasi Kependudukan Digital DEKATI Aktif 24 Jam',
-    category: 'Pemerintahan',
-    summary: 'Warga kini dapat mengajukan surat keterangan dan melacak statusnya langsung dari smartphone tanpa perlu antre di kantor desa.',
-    content: 'Pemerintah Desa resmi memberlakukan layanan digital DEKATI. Seluruh warga dapat mengajukan Surat Keterangan Tidak Mampu (SKTM), Surat Keterangan Usaha (SKU), dan surat resmi lainnya lengkap dengan tanda tangan elektronik QR Code. Silakan manfaatkan layanan ini dengan bijak demi efisiensi administrasi desa kita.',
-    date: 'Hari ini',
-    is_urgent: false,
-    author: 'Sekretariat Desa',
-    views: 145
-  },
-  {
-    id: 'anc-2',
-    title: 'Peringatan Kesiapsiagaan Cuaca Ekstrem & Pengecekan Pohon Rawan Tumbang',
-    category: 'Darurat',
-    summary: 'Warga dihimbau waspada terhadap hujan lebat dan angin kencang. Segera laporkan potensi pohon tumbang melalui menu Pengaduan.',
-    content: 'Berdasarkan peringatan dini BMKG, diperkirakan terjadi cuaca ekstrem dalam beberapa hari ke depan. Warga diharapkan memperhatikan kebersihan selokan di lingkungan masing-masing dan menghindari berteduh di bawah pohon rindang saat hujan deras. Jika terjadi keadaan darurat, segera hubungi kontak siaga desa.',
-    date: 'Kemarin',
-    is_urgent: true,
-    author: 'Satgas Siaga Bencana',
-    views: 210
-  }
-];
+export const mockAnnouncements: Announcement[] = [];
 
 export const mockApbdes = {
   fiscal_year: new Date().getFullYear(),
