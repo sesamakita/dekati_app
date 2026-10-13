@@ -32,10 +32,12 @@ const ROLE_OPTIONS = [
 ];
 const JOB_OPTIONS = [
   'Pelajar/Mahasiswa',
-  'Karyawan Swasta',
-  'PNS/TNI/Polri',
+  'PNS/ASN/PPPK',
+  'TNI/Polri',
+  'Karyawan Swasta/BUMN',
   'Wiraswasta/Pedagang',
   'Petani/Peternak',
+  'Nelayan/Perikanan',
   'Buruh Harian Lepas',
   'Mengurus Rumah Tangga',
   'Belum/Tidak Bekerja',
