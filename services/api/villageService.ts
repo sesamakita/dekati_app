@@ -6,7 +6,8 @@ import {
   mockVillageEvents,
   EmergencyContact,
   VillageEvent,
-  VillageProfile
+  VillageProfile,
+  LetterTemplate
 } from '@/store/mockData';
 
 class VillageService {
@@ -90,6 +91,34 @@ class VillageService {
     } catch {}
 
     return null;
+  }
+
+  async getLetterTemplates(): Promise<LetterTemplate[]> {
+    try {
+      const { data, error } = await supabase
+        .from('letter_templates')
+        .select('*')
+        .eq('is_active', true);
+
+      if (!error && data && data.length > 0) {
+        try {
+          await AsyncStorage.setItem('@dekatip_letter_templates', JSON.stringify(data));
+        } catch {}
+        return data as LetterTemplate[];
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] Supabase getLetterTemplates fallback to cache.', err);
+    }
+
+    try {
+      const cached = await AsyncStorage.getItem('@dekatip_letter_templates');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return parsed as LetterTemplate[];
+      }
+    } catch {}
+
+    return [];
   }
 }
 

@@ -61,6 +61,32 @@ export interface LetterType {
   required_docs: string[];
 }
 
+export interface LetterTemplateHeaderConfig {
+  font_family?: string;
+  line_spacing?: number;
+  border_style?: 'double' | 'single' | 'none';
+}
+
+export interface LetterTemplateCustomField {
+  label: string;
+  key: string;
+  placeholder?: string;
+}
+
+export interface LetterTemplate {
+  id?: string;
+  letter_type_code: string; // 'SKTM' | 'SKU' | 'SKCK_PENGANTAR' | 'SK_DOMISILI' | 'DEFAULT'
+  title_format: string;
+  opening_text: string;
+  declaration_text: string;
+  closing_text: string;
+  header_config?: LetterTemplateHeaderConfig;
+  custom_fields?: LetterTemplateCustomField[];
+  signer_role?: string;
+  updated_at?: string;
+  created_at?: string;
+}
+
 export interface LetterRequest {
   id: string;
   tracking_number: string;

@@ -27,7 +27,8 @@ import { villageService } from '@/services/api/villageService';
 import { supabase } from '@/services/supabase';
 import { Header } from '@/components/common/Header';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { LetterRequest, VillageProfile } from '@/store/mockData';
+import { LetterRequest, LetterTemplate, VillageProfile } from '@/store/mockData';
+import { getEffectiveTemplate, renderFullLetterHtml } from '@/utils/letterTemplateEngine';
 import { useAlert } from '@/context/AlertContext';
 
 export default function LetterDetailScreen() {
@@ -35,6 +36,7 @@ export default function LetterDetailScreen() {
   const { showAlert } = useAlert();
   const [request, setRequest] = useState<LetterRequest | null>(null);
   const [villageProfile, setVillageProfile] = useState<VillageProfile | null>(null);
+  const [letterTemplates, setLetterTemplates] = useState<LetterTemplate[]>([]);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,6 +44,9 @@ export default function LetterDetailScreen() {
   useEffect(() => {
     villageService.getVillageProfile().then((p) => {
       if (p) setVillageProfile(p);
+    });
+    villageService.getLetterTemplates().then((tpls) => {
+      if (tpls && tpls.length > 0) setLetterTemplates(tpls);
     });
   }, []);
 
@@ -109,274 +114,21 @@ export default function LetterDetailScreen() {
       : `${Config.webPortalUrl}/#/verify/${request.tracking_number}`);
 
   const generateLetterHtml = () => {
-    const vName = villageProfile?.name || Config.villageName || 'Desa';
-    const vDistrict = villageProfile?.district || '';
-    const vRegency = villageProfile?.regency || '';
-    const vAddress = villageProfile?.office_address || 'Alamat Kantor Pemerintahan Desa';
-    const vPhone = villageProfile?.office_phone ? `Telp: ${villageProfile.office_phone}` : '';
-    const vEmail = villageProfile?.office_email || 'sekretariat@desa.id';
-    const kades = request.signed_by_name || villageProfile?.kades_name || 'Kepala Desa';
-    const officialNo = request.official_number || request.tracking_number;
-    const todayDateStr = new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
+    const effectiveProfile: VillageProfile = villageProfile || {
+      id: 1,
+      name: Config.villageName || 'Desa',
+      office_address: 'Alamat Kantor Pemerintahan Desa',
+      office_email: 'sekretariat@desa.id',
+    };
+
+    const effectiveTemplate = getEffectiveTemplate(request.letter_name, letterTemplates);
+
+    return renderFullLetterHtml({
+      letter: request,
+      profile: effectiveProfile,
+      template: effectiveTemplate,
+      qrVerificationUrl: verificationUrl,
     });
-
-    const qrCodeImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-      verificationUrl
-    )}`;
-
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
-  <title>${request.letter_name} - ${request.citizen_name}</title>
-  <style>
-    @page {
-      margin: 12mm;
-    }
-    * {
-      box-sizing: border-box;
-    }
-    body {
-      font-family: 'Times New Roman', Times, serif;
-      color: #111827;
-      padding: 10px 15px;
-      line-height: 1.5;
-      background-color: #ffffff;
-      margin: 0;
-    }
-    .kop {
-      text-align: center;
-      border-bottom: 3px double #111827;
-      padding-bottom: 12px;
-      margin-bottom: 20px;
-    }
-    .kop h4 {
-      margin: 0;
-      font-size: 13px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-family: Arial, sans-serif;
-    }
-    .kop h3 {
-      margin: 2px 0;
-      font-size: 15px;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-family: Arial, sans-serif;
-    }
-    .kop h2 {
-      margin: 2px 0;
-      font-size: 19px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      font-family: Arial, sans-serif;
-    }
-    .kop p {
-      margin: 2px 0 0 0;
-      font-size: 11px;
-      font-family: Arial, sans-serif;
-      color: #4b5563;
-    }
-    .title-box {
-      text-align: center;
-      margin: 16px 0 20px 0;
-    }
-    .title-box h3 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: bold;
-      text-decoration: underline;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .title-box p {
-      margin: 4px 0 0 0;
-      font-size: 12px;
-      font-family: Arial, sans-serif;
-      font-weight: 600;
-      color: #374151;
-    }
-    .content {
-      font-size: 13px;
-      font-family: Arial, sans-serif;
-      text-align: justify;
-      color: #1f2937;
-    }
-    .content p {
-      margin: 8px 0;
-      line-height: 1.6;
-    }
-    .bio-table {
-      margin: 12px 0 12px 16px;
-      width: 95%;
-    }
-    .bio-table td {
-      padding: 3px 6px;
-      font-size: 12.5px;
-      vertical-align: top;
-    }
-    .bio-label {
-      width: 170px;
-      color: #4b5563;
-    }
-    .bio-colon {
-      width: 15px;
-    }
-    .bio-val {
-      color: #111827;
-      font-weight: 600;
-    }
-    .footer-section {
-      margin-top: 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-    }
-    .tte-box {
-      border: 1px solid #cbd5e1;
-      background: #f8fafc;
-      padding: 10px 14px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      max-width: 290px;
-      font-family: Arial, sans-serif;
-    }
-    .tte-box img {
-      width: 72px;
-      height: 72px;
-      border: 1px solid #e2e8f0;
-      background: #ffffff;
-      padding: 2px;
-      border-radius: 6px;
-    }
-    .tte-text {
-      font-size: 9.5px;
-      color: #4b5563;
-      line-height: 1.35;
-    }
-    .tte-badge {
-      font-weight: bold;
-      color: #065f46;
-      margin-bottom: 2px;
-      font-size: 10px;
-    }
-    .tte-token {
-      font-family: monospace;
-      font-size: 8.5px;
-      color: #64748b;
-      margin-top: 4px;
-    }
-    .signer-box {
-      text-align: center;
-      font-family: Arial, sans-serif;
-      min-width: 200px;
-    }
-    .signer-date {
-      font-size: 12px;
-      color: #374151;
-      margin-bottom: 4px;
-    }
-    .signer-role {
-      font-size: 12px;
-      font-weight: bold;
-      color: #111827;
-      margin-bottom: 45px;
-    }
-    .signer-name {
-      font-size: 13px;
-      font-weight: bold;
-      text-decoration: underline;
-      color: #111827;
-      margin: 0;
-    }
-    .signer-nip {
-      font-size: 10px;
-      color: #6b7280;
-      margin: 2px 0 0 0;
-    }
-  </style>
-</head>
-<body>
-  <div class="kop">
-    <h4>${vRegency ? `PEMERINTAH ${vRegency.toUpperCase()}` : 'PEMERINTAH KABUPATEN'}</h4>
-    <h3>${vDistrict ? `KECAMATAN ${vDistrict.toUpperCase()}` : 'KECAMATAN'}</h3>
-    <h2>PEMERINTAH ${vName.toUpperCase()}</h2>
-    <p>${[vAddress, vPhone].filter(Boolean).join(' • ')}</p>
-    <p>Email: ${vEmail}</p>
-  </div>
-
-  <div class="title-box">
-    <h3>${request.letter_name}</h3>
-    <p>Nomor: ${officialNo}</p>
-  </div>
-
-  <div class="content">
-    <p>
-      Yang bertanda tangan di bawah ini, Kepala ${vName}, ${vDistrict ? `Kecamatan ${vDistrict}, ` : ''}${vRegency ? `${vRegency}, ` : ''}menerangkan dengan sebenarnya bahwa:
-    </p>
-
-    <table class="bio-table">
-      <tr>
-        <td class="bio-label">Nama Lengkap</td>
-        <td class="bio-colon">:</td>
-        <td class="bio-val">${request.citizen_name}</td>
-      </tr>
-      <tr>
-        <td class="bio-label">NIK</td>
-        <td class="bio-colon">:</td>
-        <td class="bio-val" style="font-family: monospace;">${request.citizen_nik}</td>
-      </tr>
-      <tr>
-        <td class="bio-label">Alamat Kependudukan</td>
-        <td class="bio-colon">:</td>
-        <td class="bio-val">${request.citizen_address || 'Wilayah Desa'}</td>
-      </tr>
-      <tr>
-        <td class="bio-label">Keperluan</td>
-        <td class="bio-colon">:</td>
-        <td class="bio-val" style="font-style: italic;">${request.purpose}</td>
-      </tr>
-    </table>
-
-    <p>
-      Adalah benar-benar warga yang bertempat tinggal secara sah di wilayah ${vName} dan tercatat dalam data kependudukan resmi desa. Sepanjang sepengetahuan kami, yang bersangkutan memiliki catatan permohonan sesuai dengan maksud dan tujuan di atas.
-    </p>
-
-    <p>
-      Demikian surat keterangan ini dibuat dengan sebenarnya agar dapat dipergunakan sebagaimana mestinya oleh yang berkepentingan.
-    </p>
-  </div>
-
-  <div class="footer-section">
-    <div class="tte-box">
-      <img src="${qrCodeImgSrc}" alt="QR TTE" width="72" height="72" onerror="this.style.display='none'" />
-      <div class="tte-text">
-        <div class="tte-badge">✓ TTE Sah Resmi Desa</div>
-        Dokumen ini telah disahkan secara digital dengan Tanda Tangan Elektronik resmi.
-        <div class="tte-token">ID: ${(request.qr_token || request.tracking_number || '').slice(0, 20)}</div>
-      </div>
-    </div>
-
-    <div class="signer-box">
-      <div class="signer-date">${vName.replace(/^(Desa|Kelurahan)\s+/i, '')}, ${todayDateStr}</div>
-      <div class="signer-role">Kepala ${vName}</div>
-      <div class="signer-name">${kades}</div>
-      <div class="signer-nip">NIP. 19740510 199903 1 004</div>
-    </div>
-  </div>
-</body>
-</html>
-    `;
   };
 
   const prepareShareablePdfUri = async (html: string): Promise<string> => {
