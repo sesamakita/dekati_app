@@ -35,6 +35,7 @@ export default function LetterDetailScreen() {
   const [request, setRequest] = useState<LetterRequest | null>(null);
   const [villageProfile, setVillageProfile] = useState<VillageProfile | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -378,13 +379,18 @@ export default function LetterDetailScreen() {
   };
 
   const handleDownload = async () => {
+    if (!request) return;
     try {
       setIsGeneratingPdf(true);
       const html = generateLetterHtml();
 
-      // Metode 1: printToFileAsync + Expo Sharing
-      let sharedSuccessfully = false;
+      // Gunakan Native Print Spooler Android / iOS.
+      // Di Android, opsi standarnya adalah "Simpan sebagai PDF" ke folder Downloads/Dokumen
+      // tanpa batasan permission file storage aplikasi.
       try {
+        await Print.printAsync({ html });
+      } catch (err: any) {
+        console.warn('[LetterDetailScreen] printAsync fallback to printToFileAsync:', err);
         const fileResult = await Print.printToFileAsync({ html });
         if (fileResult?.uri) {
           if (await Sharing.isAvailableAsync()) {
@@ -393,29 +399,17 @@ export default function LetterDetailScreen() {
               mimeType: 'application/pdf',
               dialogTitle: `Unduh / Simpan Surat Resmi ${request.letter_name}`,
             });
-            sharedSuccessfully = true;
-            return;
           } else {
             showAlert({
               title: 'Surat PDF Berhasil Dibuat',
               message: `Surat resmi disimpan di: ${fileResult.uri}`,
               type: 'success',
             });
-            sharedSuccessfully = true;
-            return;
           }
         }
-      } catch (fileErr) {
-        console.warn('[LetterDetail] printToFileAsync failed, trying native system print:', fileErr);
-      }
-
-      // Metode 2: Fallback ke Native Print Spooler Android (Bisa langsung 'Simpan sebagai PDF' di HP)
-      if (!sharedSuccessfully) {
-        await Print.printAsync({ html });
       }
     } catch (err: any) {
       console.error('[LetterDetailScreen] handleDownload error:', err);
-      // Metode 3: Fallback ke Portal Web Resmi jika sistem perangkat terkendala
       showAlert({
         title: 'Buka Dokumen Resmi',
         message: 'Gagal membuat file PDF langsung di perangkat. Apakah Anda ingin membuka dokumen resmi ini di peramban web untuk dicetak/disimpan?',
@@ -428,20 +422,8 @@ export default function LetterDetailScreen() {
     }
   };
 
-  const handlePrintDirect = async () => {
-    try {
-      setIsGeneratingPdf(true);
-      const html = generateLetterHtml();
-      await Print.printAsync({ html });
-    } catch (err: any) {
-      console.error('[LetterDetailScreen] handlePrintDirect error:', err);
-      Linking.openURL(verificationUrl);
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-
-  const handleShareWa = () => {
+  const sendWaTextMessage = () => {
+    if (!request) return;
     const text = encodeURIComponent(
       `*Surat Resmi Desa - ${request.letter_name}*\n\n` +
       `Nomor Surat: ${request.official_number || request.tracking_number}\n` +
@@ -452,6 +434,34 @@ export default function LetterDetailScreen() {
       `Cek keabsahan dokumen:\n${verificationUrl}`
     );
     Linking.openURL(`https://wa.me/?text=${text}`);
+  };
+
+  const handleShareWa = async () => {
+    if (!request) return;
+    try {
+      setIsSharing(true);
+      const html = generateLetterHtml();
+
+      // 1. Render dokumen surat ke file fisik PDF sementara
+      const fileResult = await Print.printToFileAsync({ html });
+
+      // 2. Bagikan file fisik PDF langsung ke WhatsApp via Native Sharing
+      if (fileResult?.uri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(fileResult.uri, {
+          UTI: 'com.adobe.pdf',
+          mimeType: 'application/pdf',
+          dialogTitle: `Bagikan Berkas PDF ${request.letter_name} ke WhatsApp`,
+        });
+      } else {
+        // Fallback teks jika sharing berkas fisik tidak didukung perangkat
+        sendWaTextMessage();
+      }
+    } catch (err: any) {
+      console.warn('[LetterDetailScreen] handleShareWa file error, falling back to text URL:', err);
+      sendWaTextMessage();
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   return (
@@ -610,12 +620,12 @@ export default function LetterDetailScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Action Buttons */}
+              {/* Action Buttons: 2 Tombol Jelas & Terarah */}
               <TouchableOpacity
-                style={[styles.downloadBtn, isGeneratingPdf && { opacity: 0.7 }]}
+                style={[styles.downloadBtn, (isGeneratingPdf || isSharing) && { opacity: 0.7 }]}
                 activeOpacity={0.85}
                 onPress={handleDownload}
-                disabled={isGeneratingPdf}
+                disabled={isGeneratingPdf || isSharing}
               >
                 {isGeneratingPdf ? (
                   <>
@@ -624,25 +634,29 @@ export default function LetterDetailScreen() {
                   </>
                 ) : (
                   <>
-                    <Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
+                    <Ionicons name="download-outline" size={18} color="#FFFFFF" />
                     <Text style={styles.downloadBtnText}>Unduh Surat Resmi (PDF)</Text>
                   </>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.printBtn}
+                style={[styles.shareBtn, (isGeneratingPdf || isSharing) && { opacity: 0.7 }]}
                 activeOpacity={0.85}
-                onPress={handlePrintDirect}
-                disabled={isGeneratingPdf}
+                onPress={handleShareWa}
+                disabled={isGeneratingPdf || isSharing}
               >
-                <Ionicons name="print-outline" size={18} color={Colors.primary} />
-                <Text style={styles.printBtnText}>Cetak / Simpan PDF Sistem</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.shareBtn} activeOpacity={0.85} onPress={handleShareWa}>
-                <Ionicons name="logo-whatsapp" size={18} color="#15803D" />
-                <Text style={styles.shareBtnText}>Bagikan Berkas ke WhatsApp</Text>
+                {isSharing ? (
+                  <>
+                    <ActivityIndicator size="small" color="#15803D" />
+                    <Text style={styles.shareBtnText}>Menyiapkan Berkas PDF...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="logo-whatsapp" size={18} color="#15803D" />
+                    <Text style={styles.shareBtnText}>Bagikan Berkas ke WhatsApp</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -907,23 +921,6 @@ const styles = StyleSheet.create({
   downloadBtnText: {
     fontFamily: Fonts.bold,
     color: '#FFFFFF',
-    fontSize: 13,
-  },
-  printBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0FDF4',
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-    paddingVertical: 14,
-    borderRadius: Spacing.radiusFull,
-    marginTop: 8,
-    gap: 6,
-  },
-  printBtnText: {
-    fontFamily: Fonts.bold,
-    color: Colors.primary,
     fontSize: 13,
   },
   shareBtn: {
