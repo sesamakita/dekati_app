@@ -31,6 +31,7 @@ const ROLE_OPTIONS = [
   'Famili Lain',
 ];
 const JOB_OPTIONS = [
+  'Belum Sekolah / Pra-Sekolah (PAUD)',
   'Pelajar/Mahasiswa',
   'PNS/ASN/PPPK',
   'TNI/Polri',
