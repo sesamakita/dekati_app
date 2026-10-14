@@ -159,6 +159,8 @@ export function buildTemplateContext(
   signerRoleOverride?: string
 ): Record<string, string> {
   const vName = profile.name || 'Desa';
+  const isKelurahan = profile.village_type === 'kelurahan' || vName.toLowerCase().startsWith('kelurahan');
+  const cleanName = vName.replace(/^(PEMERINTAH\s+)?(DESA|KELURAHAN)\s+/i, '').trim();
   const vDistrict = profile.district || '';
   const vRegency = profile.regency || '';
   const officialNo = (letter as any).letter_official_number || letter.official_number || letter.tracking_number;
@@ -168,21 +170,27 @@ export function buildTemplateContext(
     year: 'numeric',
   });
 
+  const defaultSignerTitle = isKelurahan ? 'Lurah' : 'Kepala Desa';
+  let signerTitle = signerRoleOverride || defaultSignerTitle;
+  if (isKelurahan && signerTitle === 'Kepala Desa') {
+    signerTitle = 'Lurah';
+  }
+
   return {
     nama_warga: letter.citizen_name,
     nik: letter.citizen_nik,
-    alamat: letter.citizen_address || 'Wilayah Desa',
+    alamat: letter.citizen_address || (isKelurahan ? 'Wilayah Kelurahan' : 'Wilayah Desa'),
     keperluan: letter.purpose,
     nomor_surat: officialNo,
     tanggal_surat: todayDateStr,
-    nama_desa: vName,
+    nama_desa: isKelurahan ? `Kelurahan ${cleanName}` : `Desa ${cleanName}`,
     nama_kecamatan: vDistrict,
     nama_kabupaten: vRegency,
-    alamat_kantor: profile.office_address || 'Alamat Kantor Pemerintahan Desa',
+    alamat_kantor: profile.office_address || (isKelurahan ? 'Alamat Kantor Kelurahan' : 'Alamat Kantor Pemerintahan Desa'),
     telp_kantor: profile.office_phone || '',
-    email_kantor: profile.office_email || 'sekretariat@desa.id',
-    nama_kades: letter.signed_by_name || profile.kades_name || 'Kepala Desa',
-    jabatan_penandatangan: signerRoleOverride || 'Kepala ' + vName,
+    email_kantor: profile.office_email || (isKelurahan ? 'sekretariat@kelurahan.go.id' : 'sekretariat@desa.id'),
+    nama_kades: letter.signed_by_name || profile.kades_name || (isKelurahan ? 'Lurah' : 'Kepala Desa'),
+    jabatan_penandatangan: signerTitle,
   };
 }
 
@@ -234,7 +242,10 @@ export function renderFullLetterHtml(params: {
   const vRegency = profile.regency || '';
   const vDistrict = profile.district || '';
   const vName = profile.name || 'Desa';
-  const vAddress = profile.office_address || 'Alamat Kantor Pemerintahan Desa';
+  const isKelurahan = profile.village_type === 'kelurahan' || vName.toLowerCase().startsWith('kelurahan');
+  const cleanName = vName.replace(/^(PEMERINTAH\s+)?(DESA|KELURAHAN)\s+/i, '').trim();
+  const institutionHeading = isKelurahan ? `PEMERINTAH KELURAHAN ${cleanName.toUpperCase()}` : `PEMERINTAH DESA ${cleanName.toUpperCase()}`;
+  const vAddress = profile.office_address || (isKelurahan ? 'Alamat Kantor Kelurahan' : 'Alamat Kantor Pemerintahan Desa');
   const vPhone = profile.office_phone ? `Telp: ${profile.office_phone}` : '';
   const vEmail = profile.office_email ? `Email: ${profile.office_email}` : '';
   const vPostal = profile.postal_code ? `Kode Pos: ${profile.postal_code}` : '';
@@ -468,9 +479,9 @@ export function renderFullLetterHtml(params: {
         ` : (hasRightLogo ? `<td style="width: 75px;"></td>` : '')}
 
         <td style="text-align: center; vertical-align: middle;">
-          <h4>${vRegency ? `PEMERINTAH ${vRegency.toUpperCase()}` : 'PEMERINTAH KABUPATEN'}</h4>
+          <h4>${vRegency ? `PEMERINTAH ${vRegency.toUpperCase()}` : (isKelurahan ? 'PEMERINTAH KOTA' : 'PEMERINTAH KABUPATEN')}</h4>
           <h3>${vDistrict ? `KECAMATAN ${vDistrict.toUpperCase()}` : 'KECAMATAN'}</h3>
-          <h2>PEMERINTAH ${vName.toUpperCase()}</h2>
+          <h2>${institutionHeading}</h2>
           <p>${[vAddress, vPhone, vPostal].filter(Boolean).join(' • ')}</p>
           ${vEmail ? `<p>${vEmail}</p>` : ''}
         </td>
@@ -524,17 +535,17 @@ export function renderFullLetterHtml(params: {
     <div class="tte-box">
       <img src="${qrCodeImgSrc}" alt="QR TTE" width="72" height="72" onerror="this.style.display='none'" />
       <div class="tte-text">
-        <div class="tte-badge">✓ TTE Sah Resmi Desa</div>
+        <div class="tte-badge">✓ TTE Sah Resmi ${isKelurahan ? 'Kelurahan' : 'Desa'}</div>
         Dokumen ini telah disahkan secara digital dengan Tanda Tangan Elektronik resmi.
         <div class="tte-token">ID: ${(letter.qr_token || letter.tracking_number || '').slice(0, 20)}</div>
       </div>
     </div>
 
     <div class="signer-box">
-      <div class="signer-date">${vName.replace(/^(Desa|Kelurahan)\s+/i, '')}, ${context.tanggal_surat}</div>
-      <div class="signer-role">${effectiveTemplate.signer_role || 'Kepala ' + vName}</div>
+      <div class="signer-date">${cleanName}, ${context.tanggal_surat}</div>
+      <div class="signer-role">${context.jabatan_penandatangan}</div>
       <div class="signer-name">${context.nama_kades}</div>
-      <div class="signer-nip">NIP. 19740510 199903 1 004</div>
+      ${profile.kades_nip ? `<div class="signer-nip">NIP. ${profile.kades_nip}</div>` : (isKelurahan ? `<div class="signer-nip">NIP. 19780512 200312 1 002</div>` : '')}
     </div>
   </div>
 </body>

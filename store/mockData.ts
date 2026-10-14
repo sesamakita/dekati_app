@@ -38,6 +38,7 @@ export interface VillageProfile {
   id: number;
   name: string;
   code?: string;
+  village_type?: 'desa' | 'kelurahan';
   district?: string;
   regency?: string;
   province?: string;
@@ -46,6 +47,7 @@ export interface VillageProfile {
   office_phone?: string;
   office_email?: string;
   kades_name?: string;
+  kades_nip?: string;
   sekdes_name?: string;
   vision?: string;
   mission?: string[];
