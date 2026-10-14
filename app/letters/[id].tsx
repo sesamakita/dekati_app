@@ -106,51 +106,52 @@ export default function LetterDetailScreen() {
       ? `${Config.webPortalUrl}/#/verify/${request.qr_token}`
       : `${Config.webPortalUrl}/#/verify/${request.tracking_number}`);
 
-  const handleDownload = async () => {
-    try {
-      setIsGeneratingPdf(true);
+  const generateLetterHtml = () => {
+    const vName = villageProfile?.name || Config.villageName || 'Desa';
+    const vDistrict = villageProfile?.district || '';
+    const vRegency = villageProfile?.regency || '';
+    const vAddress = villageProfile?.office_address || 'Alamat Kantor Pemerintahan Desa';
+    const vPhone = villageProfile?.office_phone ? `Telp: ${villageProfile.office_phone}` : '';
+    const vEmail = villageProfile?.office_email || 'sekretariat@desa.id';
+    const kades = request.signed_by_name || villageProfile?.kades_name || 'Kepala Desa';
+    const officialNo = request.official_number || request.tracking_number;
+    const todayDateStr = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
 
-      const vName = villageProfile?.name || Config.villageName || 'Desa';
-      const vDistrict = villageProfile?.district || '';
-      const vRegency = villageProfile?.regency || '';
-      const vAddress = villageProfile?.office_address || 'Alamat Kantor Pemerintahan Desa';
-      const vPhone = villageProfile?.office_phone ? `Telp: ${villageProfile.office_phone}` : '';
-      const vEmail = villageProfile?.office_email || 'sekretariat@desa.id';
-      const kades = request.signed_by_name || villageProfile?.kades_name || 'Kepala Desa';
-      const officialNo = request.official_number || request.tracking_number;
-      const todayDateStr = new Date().toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
+    const qrCodeImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+      verificationUrl
+    )}`;
 
-      const qrCodeImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-        verificationUrl
-      )}`;
-
-      const html = `
+    return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
   <title>${request.letter_name} - ${request.citizen_name}</title>
   <style>
     @page {
-      size: A4;
-      margin: 20mm 20mm;
+      margin: 12mm;
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       font-family: 'Times New Roman', Times, serif;
       color: #111827;
-      padding: 10px 20px;
+      padding: 10px 15px;
       line-height: 1.5;
       background-color: #ffffff;
+      margin: 0;
     }
     .kop {
       text-align: center;
       border-bottom: 3px double #111827;
       padding-bottom: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
     .kop h4 {
       margin: 0;
@@ -184,7 +185,7 @@ export default function LetterDetailScreen() {
     }
     .title-box {
       text-align: center;
-      margin: 20px 0 24px 0;
+      margin: 16px 0 20px 0;
     }
     .title-box h3 {
       margin: 0;
@@ -208,11 +209,11 @@ export default function LetterDetailScreen() {
       color: #1f2937;
     }
     .content p {
-      margin: 10px 0;
+      margin: 8px 0;
       line-height: 1.6;
     }
     .bio-table {
-      margin: 14px 0 14px 20px;
+      margin: 12px 0 12px 16px;
       width: 95%;
     }
     .bio-table td {
@@ -232,7 +233,7 @@ export default function LetterDetailScreen() {
       font-weight: 600;
     }
     .footer-section {
-      margin-top: 36px;
+      margin-top: 30px;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
@@ -287,7 +288,7 @@ export default function LetterDetailScreen() {
       font-size: 12px;
       font-weight: bold;
       color: #111827;
-      margin-bottom: 50px;
+      margin-bottom: 45px;
     }
     .signer-name {
       font-size: 13px;
@@ -356,11 +357,11 @@ export default function LetterDetailScreen() {
 
   <div class="footer-section">
     <div class="tte-box">
-      <img src="${qrCodeImgSrc}" alt="QR TTE" />
+      <img src="${qrCodeImgSrc}" alt="QR TTE" width="72" height="72" onerror="this.style.display='none'" />
       <div class="tte-text">
         <div class="tte-badge">✓ TTE Sah Resmi Desa</div>
         Dokumen ini telah disahkan secara digital dengan Tanda Tangan Elektronik resmi.
-        <div class="tte-token">ID: ${(request.qr_token || request.tracking_number).slice(0, 20)}</div>
+        <div class="tte-token">ID: ${(request.qr_token || request.tracking_number || '').slice(0, 20)}</div>
       </div>
     </div>
 
@@ -373,29 +374,68 @@ export default function LetterDetailScreen() {
   </div>
 </body>
 </html>
-      `;
+    `;
+  };
 
-      const { uri } = await Print.printToFileAsync({ html });
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          UTI: '.pdf',
-          mimeType: 'application/pdf',
-          dialogTitle: `Unduh Surat Resmi ${request.letter_name}`,
-        });
-      } else {
-        showAlert({
-          title: 'Surat PDF Berhasil Dibuat',
-          message: `Surat resmi disimpan di: ${uri}`,
-          type: 'success',
-        });
+  const handleDownload = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const html = generateLetterHtml();
+
+      // Metode 1: printToFileAsync + Expo Sharing
+      let sharedSuccessfully = false;
+      try {
+        const fileResult = await Print.printToFileAsync({ html });
+        if (fileResult?.uri) {
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(fileResult.uri, {
+              UTI: 'com.adobe.pdf',
+              mimeType: 'application/pdf',
+              dialogTitle: `Unduh / Simpan Surat Resmi ${request.letter_name}`,
+            });
+            sharedSuccessfully = true;
+            return;
+          } else {
+            showAlert({
+              title: 'Surat PDF Berhasil Dibuat',
+              message: `Surat resmi disimpan di: ${fileResult.uri}`,
+              type: 'success',
+            });
+            sharedSuccessfully = true;
+            return;
+          }
+        }
+      } catch (fileErr) {
+        console.warn('[LetterDetail] printToFileAsync failed, trying native system print:', fileErr);
+      }
+
+      // Metode 2: Fallback ke Native Print Spooler Android (Bisa langsung 'Simpan sebagai PDF' di HP)
+      if (!sharedSuccessfully) {
+        await Print.printAsync({ html });
       }
     } catch (err: any) {
       console.error('[LetterDetailScreen] handleDownload error:', err);
+      // Metode 3: Fallback ke Portal Web Resmi jika sistem perangkat terkendala
       showAlert({
-        title: 'Gagal Mengunduh Dokumen',
-        message: err?.message || 'Terjadi kesalahan saat membuat dokumen PDF.',
-        type: 'danger',
+        title: 'Buka Dokumen Resmi',
+        message: 'Gagal membuat file PDF langsung di perangkat. Apakah Anda ingin membuka dokumen resmi ini di peramban web untuk dicetak/disimpan?',
+        type: 'warning',
+        confirmText: 'Buka di Browser',
+        onConfirm: () => Linking.openURL(verificationUrl),
       });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handlePrintDirect = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const html = generateLetterHtml();
+      await Print.printAsync({ html });
+    } catch (err: any) {
+      console.error('[LetterDetailScreen] handlePrintDirect error:', err);
+      Linking.openURL(verificationUrl);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -588,6 +628,16 @@ export default function LetterDetailScreen() {
                     <Text style={styles.downloadBtnText}>Unduh Surat Resmi (PDF)</Text>
                   </>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.printBtn}
+                activeOpacity={0.85}
+                onPress={handlePrintDirect}
+                disabled={isGeneratingPdf}
+              >
+                <Ionicons name="print-outline" size={18} color={Colors.primary} />
+                <Text style={styles.printBtnText}>Cetak / Simpan PDF Sistem</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.shareBtn} activeOpacity={0.85} onPress={handleShareWa}>
@@ -857,6 +907,23 @@ const styles = StyleSheet.create({
   downloadBtnText: {
     fontFamily: Fonts.bold,
     color: '#FFFFFF',
+    fontSize: 13,
+  },
+  printBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingVertical: 14,
+    borderRadius: Spacing.radiusFull,
+    marginTop: 8,
+    gap: 6,
+  },
+  printBtnText: {
+    fontFamily: Fonts.bold,
+    color: Colors.primary,
     fontSize: 13,
   },
   shareBtn: {
