@@ -90,6 +90,8 @@ export interface LetterTemplateCustomField {
 export interface LetterTemplate {
   id?: string;
   letter_type_code: string; // 'SKTM' | 'SKU' | 'SKCK_PENGANTAR' | 'SK_DOMISILI' | 'DEFAULT'
+  letter_name?: string;
+  is_active?: boolean;
   title_format: string;
   opening_text: string;
   declaration_text: string;

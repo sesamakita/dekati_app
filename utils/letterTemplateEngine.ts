@@ -1,5 +1,16 @@
 // utils/letterTemplateEngine.ts
 import { LetterRequest, LetterTemplate, VillageProfile } from '@/store/mockData';
+import {
+  DEFAULT_GARUDA_DATA_URI,
+  DEFAULT_KAB_LOGO_DATA_URI,
+  DEFAULT_DESA_LOGO_DATA_URI,
+} from './logoAssets';
+
+export {
+  DEFAULT_GARUDA_DATA_URI,
+  DEFAULT_KAB_LOGO_DATA_URI,
+  DEFAULT_DESA_LOGO_DATA_URI,
+};
 
 export const AVAILABLE_PLACEHOLDERS = [
   { tag: '{{nama_warga}}', label: 'Nama Warga', desc: 'Nama lengkap pemohon surat' },
@@ -16,11 +27,8 @@ export const AVAILABLE_PLACEHOLDERS = [
   { tag: '{{jabatan_penandatangan}}', label: 'Jabatan Penandatangan', desc: 'Kepala Desa / a.n. Sekretaris Desa' },
 ];
 
-export const DEFAULT_GARUDA_URL =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/National_emblem_of_Indonesia_Garuda_Pancasila.svg/240px-National_emblem_of_Indonesia_Garuda_Pancasila.svg.png';
-
-export const DEFAULT_KAB_LOGO_URL =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Lambang_Kabupaten_Bandung.png/240px-Lambang_Kabupaten_Bandung.png';
+export const DEFAULT_GARUDA_URL = DEFAULT_GARUDA_DATA_URI;
+export const DEFAULT_KAB_LOGO_URL = DEFAULT_KAB_LOGO_DATA_URI;
 
 export const DEFAULT_TEMPLATES: Record<string, LetterTemplate> = {
   DEFAULT: {
@@ -202,24 +210,31 @@ export function getEffectiveTemplate(
   customTemplates?: LetterTemplate[]
 ): LetterTemplate {
   const code = normalizeLetterCode(letterNameOrCode);
+  const rawUpper = (letterNameOrCode || '').toUpperCase().trim();
 
   // 1. Cari di kustomisasi desa yang tersimpan
   if (customTemplates && customTemplates.length > 0) {
     const foundCustom = customTemplates.find(
       (t) =>
-        t.letter_type_code.toUpperCase() === code ||
-        t.letter_type_code.toUpperCase() === letterNameOrCode.toUpperCase()
+        t.is_active !== false &&
+        (t.letter_type_code.toUpperCase() === code ||
+         t.letter_type_code.toUpperCase() === rawUpper ||
+         (t.letter_name && t.letter_name.toUpperCase() === rawUpper) ||
+         (t.letter_name && normalizeLetterCode(t.letter_name) === code))
     );
     if (foundCustom) return foundCustom;
 
     // Cari fallback DEFAULT di custom
-    const customDefault = customTemplates.find((t) => t.letter_type_code === 'DEFAULT');
+    const customDefault = customTemplates.find((t) => t.letter_type_code === 'DEFAULT' && t.is_active !== false);
     if (customDefault) return customDefault;
   }
 
   // 2. Cari di template default bawaan berdasarkan kode
   if (DEFAULT_TEMPLATES[code]) {
     return DEFAULT_TEMPLATES[code];
+  }
+  if (DEFAULT_TEMPLATES[rawUpper]) {
+    return DEFAULT_TEMPLATES[rawUpper];
   }
 
   // 3. Fallback terakhir ke template DEFAULT standar Permendagri
@@ -256,9 +271,9 @@ export function renderFullLetterHtml(params: {
   const showDesa = (headerConfig.show_desa_logo || logoLayout === 'dual_logo') && logoLayout !== 'no_logo' && logoLayout !== 'center_garuda';
   const showGaruda = logoLayout === 'center_garuda' || Boolean(headerConfig.show_garuda_logo);
 
-  const kabLogoUrl = headerConfig.kab_logo_url || profile.logo_kabupaten_url || DEFAULT_KAB_LOGO_URL;
-  const desaLogoUrl = headerConfig.desa_logo_url || profile.logo_desa_url || '';
-  const garudaLogoUrl = headerConfig.garuda_logo_url || DEFAULT_GARUDA_URL;
+  const kabLogoUrl = headerConfig.kab_logo_url || profile.logo_kabupaten_url || DEFAULT_KAB_LOGO_DATA_URI;
+  const desaLogoUrl = headerConfig.desa_logo_url || profile.logo_desa_url || (headerConfig.show_desa_logo || logoLayout === 'dual_logo' ? DEFAULT_DESA_LOGO_DATA_URI : '');
+  const garudaLogoUrl = headerConfig.garuda_logo_url || DEFAULT_GARUDA_DATA_URI;
 
   const hasLeftLogo = showKab && Boolean(kabLogoUrl);
   const hasRightLogo = showDesa && Boolean(desaLogoUrl);
@@ -298,6 +313,8 @@ export function renderFullLetterHtml(params: {
     }
     * {
       box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
     body {
       font-family: '${fontFamily}', 'Times New Roman', Times, serif;
@@ -467,14 +484,14 @@ export function renderFullLetterHtml(params: {
   <div class="kop">
     ${showGaruda ? `
       <div style="text-align: center; margin-bottom: 8px;">
-        <img src="${garudaLogoUrl}" alt="Garuda Pancasila" style="max-height: 65px; max-width: 65px; object-fit: contain;" onerror="this.style.display='none'" />
+        <img src="${garudaLogoUrl}" alt="Garuda Pancasila" crossorigin="anonymous" referrerpolicy="no-referrer" style="max-height: 65px; max-width: 65px; object-fit: contain;" onerror="this.onerror=null; this.src='${DEFAULT_GARUDA_DATA_URI}';" />
       </div>
     ` : ''}
     <table style="width: 100%; border-collapse: collapse; margin: 0; padding: 0;">
       <tr>
         ${hasLeftLogo ? `
           <td style="width: 75px; vertical-align: middle; text-align: left; padding-right: 12px;">
-            <img src="${kabLogoUrl}" alt="Lambang Daerah" style="max-height: 75px; max-width: 75px; object-fit: contain;" onerror="this.style.display='none'" />
+            <img src="${kabLogoUrl}" alt="Lambang Daerah" crossorigin="anonymous" referrerpolicy="no-referrer" style="max-height: 75px; max-width: 75px; object-fit: contain;" onerror="this.onerror=null; this.src='${DEFAULT_KAB_LOGO_DATA_URI}';" />
           </td>
         ` : (hasRightLogo ? `<td style="width: 75px;"></td>` : '')}
 
@@ -488,7 +505,7 @@ export function renderFullLetterHtml(params: {
 
         ${hasRightLogo ? `
           <td style="width: 75px; vertical-align: middle; text-align: right; padding-left: 12px;">
-            <img src="${desaLogoUrl}" alt="Lambang Desa" style="max-height: 75px; max-width: 75px; object-fit: contain;" onerror="this.style.display='none'" />
+            <img src="${desaLogoUrl}" alt="Lambang Desa" crossorigin="anonymous" referrerpolicy="no-referrer" style="max-height: 75px; max-width: 75px; object-fit: contain;" onerror="this.onerror=null; this.src='${DEFAULT_DESA_LOGO_DATA_URI}';" />
           </td>
         ` : (hasLeftLogo ? `<td style="width: 75px;"></td>` : '')}
       </tr>
