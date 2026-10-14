@@ -17,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/Colors';
 import { Config } from '@/constants/Config';
 import { Fonts } from '@/constants/Typography';
@@ -378,6 +379,38 @@ export default function LetterDetailScreen() {
     `;
   };
 
+  const prepareShareablePdfUri = async (html: string): Promise<string> => {
+    // 1. Render PDF dengan base64 agar konten biner file siap ditempatkan di cache aplikasi
+    const fileResult = await Print.printToFileAsync({ html, base64: true });
+    let finalUri = fileResult.uri;
+
+    // 2. Tempatkan ke FileSystem.cacheDirectory resmi aplikasi agar lolos verifikasi Scoped Storage Android / Expo Go
+    try {
+      const cleanTracking = (request?.official_number || request?.tracking_number || 'dokumen')
+        .replace(/[^a-zA-Z0-9_-]/g, '_');
+      const targetFileName = `Surat_Resmi_${cleanTracking}.pdf`;
+      const targetPath = `${FileSystem.cacheDirectory}${targetFileName}`;
+
+      if (fileResult.base64) {
+        await FileSystem.writeAsStringAsync(targetPath, fileResult.base64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        finalUri = targetPath;
+      } else if (fileResult.uri) {
+        await FileSystem.copyAsync({
+          from: fileResult.uri,
+          to: targetPath,
+        });
+        finalUri = targetPath;
+      }
+    } catch (fsErr) {
+      console.warn('[LetterDetailScreen] FileSystem cache placement failed, using direct fileResult uri:', fsErr);
+      finalUri = fileResult.uri;
+    }
+
+    return finalUri;
+  };
+
   const handleDownload = async () => {
     if (!request) return;
     try {
@@ -391,10 +424,10 @@ export default function LetterDetailScreen() {
         await Print.printAsync({ html });
       } catch (err: any) {
         console.warn('[LetterDetailScreen] printAsync fallback to printToFileAsync:', err);
-        const fileResult = await Print.printToFileAsync({ html });
-        if (fileResult?.uri) {
+        const shareableUri = await prepareShareablePdfUri(html);
+        if (shareableUri) {
           if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileResult.uri, {
+            await Sharing.shareAsync(shareableUri, {
               UTI: 'com.adobe.pdf',
               mimeType: 'application/pdf',
               dialogTitle: `Unduh / Simpan Surat Resmi ${request.letter_name}`,
@@ -402,7 +435,7 @@ export default function LetterDetailScreen() {
           } else {
             showAlert({
               title: 'Surat PDF Berhasil Dibuat',
-              message: `Surat resmi disimpan di: ${fileResult.uri}`,
+              message: `Surat resmi disimpan di: ${shareableUri}`,
               type: 'success',
             });
           }
@@ -442,12 +475,12 @@ export default function LetterDetailScreen() {
       setIsSharing(true);
       const html = generateLetterHtml();
 
-      // 1. Render dokumen surat ke file fisik PDF sementara
-      const fileResult = await Print.printToFileAsync({ html });
+      // 1. Render dokumen surat dan tempatkan di direktori cache sandbox yang aman
+      const shareableUri = await prepareShareablePdfUri(html);
 
       // 2. Bagikan file fisik PDF langsung ke WhatsApp via Native Sharing
-      if (fileResult?.uri && (await Sharing.isAvailableAsync())) {
-        await Sharing.shareAsync(fileResult.uri, {
+      if (shareableUri && (await Sharing.isAvailableAsync())) {
+        await Sharing.shareAsync(shareableUri, {
           UTI: 'com.adobe.pdf',
           mimeType: 'application/pdf',
           dialogTitle: `Bagikan Berkas PDF ${request.letter_name} ke WhatsApp`,
