@@ -28,7 +28,14 @@ import { supabase } from '@/services/supabase';
 import { Header } from '@/components/common/Header';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { LetterRequest, LetterTemplate, VillageProfile } from '@/store/mockData';
-import { getEffectiveTemplate, renderFullLetterHtml } from '@/utils/letterTemplateEngine';
+import { 
+  getEffectiveTemplate, 
+  renderFullLetterHtml,
+  prefetchImageAsDataUri,
+  DEFAULT_GARUDA_DATA_URI,
+  DEFAULT_KAB_LOGO_DATA_URI,
+  DEFAULT_DESA_LOGO_DATA_URI,
+} from '@/utils/letterTemplateEngine';
 import { useAlert } from '@/context/AlertContext';
 
 export default function LetterDetailScreen() {
@@ -113,7 +120,7 @@ export default function LetterDetailScreen() {
       ? `${Config.webPortalUrl}/#/verify/${request.qr_token}`
       : `${Config.webPortalUrl}/#/verify/${request.tracking_number}`);
 
-  const generateLetterHtml = () => {
+  const generateLetterHtml = async (): Promise<string> => {
     const effectiveProfile: VillageProfile = villageProfile || {
       id: 1,
       name: Config.villageName || 'Desa',
@@ -123,10 +130,41 @@ export default function LetterDetailScreen() {
 
     const effectiveTemplate = getEffectiveTemplate(request.letter_name, letterTemplates);
 
+    // Pra-unduh dan konversi URL logo eksternal (jika ada) ke Base64 Data URI
+    // agar 100% muncul di PDF tanpa terhalang koneksi lambat, timeout WebView, atau blokir hotlink
+    const rawKabUrl = effectiveTemplate.header_config?.kab_logo_url || effectiveProfile.logo_kabupaten_url;
+    const rawDesaUrl = effectiveTemplate.header_config?.desa_logo_url || effectiveProfile.logo_desa_url;
+    const rawGarudaUrl = effectiveTemplate.header_config?.garuda_logo_url;
+
+    const [resolvedKabLogo, resolvedDesaLogo, resolvedGarudaLogo] = await Promise.all([
+      prefetchImageAsDataUri(rawKabUrl, DEFAULT_KAB_LOGO_DATA_URI),
+      prefetchImageAsDataUri(
+        rawDesaUrl,
+        effectiveTemplate.header_config?.show_desa_logo || effectiveTemplate.header_config?.logo_layout === 'dual_logo'
+          ? DEFAULT_DESA_LOGO_DATA_URI
+          : ''
+      ),
+      prefetchImageAsDataUri(rawGarudaUrl, DEFAULT_GARUDA_DATA_URI),
+    ]);
+
+    const resolvedTemplate: LetterTemplate = {
+      ...effectiveTemplate,
+      header_config: {
+        ...effectiveTemplate.header_config,
+        kab_logo_url: resolvedKabLogo,
+        desa_logo_url: resolvedDesaLogo,
+        garuda_logo_url: resolvedGarudaLogo,
+      },
+    };
+
     return renderFullLetterHtml({
       letter: request,
-      profile: effectiveProfile,
-      template: effectiveTemplate,
+      profile: {
+        ...effectiveProfile,
+        logo_kabupaten_url: resolvedKabLogo,
+        logo_desa_url: resolvedDesaLogo,
+      },
+      template: resolvedTemplate,
       qrVerificationUrl: verificationUrl,
     });
   };
@@ -167,7 +205,7 @@ export default function LetterDetailScreen() {
     if (!request) return;
     try {
       setIsGeneratingPdf(true);
-      const html = generateLetterHtml();
+      const html = await generateLetterHtml();
 
       // Gunakan Native Print Spooler Android / iOS.
       // Di Android, opsi standarnya adalah "Simpan sebagai PDF" ke folder Downloads/Dokumen
@@ -225,7 +263,7 @@ export default function LetterDetailScreen() {
     if (!request) return;
     try {
       setIsSharing(true);
-      const html = generateLetterHtml();
+      const html = await generateLetterHtml();
 
       // 1. Render dokumen surat dan tempatkan di direktori cache sandbox yang aman
       const shareableUri = await prepareShareablePdfUri(html);

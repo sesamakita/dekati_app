@@ -1,4 +1,4 @@
-// utils/letterTemplateEngine.ts
+import * as FileSystem from 'expo-file-system/legacy';
 import { LetterRequest, LetterTemplate, VillageProfile } from '@/store/mockData';
 import {
   DEFAULT_GARUDA_DATA_URI,
@@ -11,6 +11,49 @@ export {
   DEFAULT_KAB_LOGO_DATA_URI,
   DEFAULT_DESA_LOGO_DATA_URI,
 };
+
+/**
+ * Mengunduh URL logo eksternal ke memori/cache HP dan mengubahnya menjadi Data URI Base64
+ * secara asinkron sebelum diserahkan ke mesin PDF Print Spooler Android / iOS.
+ * Ini menjamin logo 100% muncul seketika di PDF tanpa terpengaruh koneksi lambat,
+ * timeout headless webview, atau blokir hotlink.
+ */
+export async function prefetchImageAsDataUri(
+  url: string | undefined,
+  fallbackDataUri: string
+): Promise<string> {
+  if (!url || typeof url !== 'string') return fallbackDataUri;
+  const trimmed = url.trim();
+  if (!trimmed) return fallbackDataUri;
+  if (trimmed.startsWith('data:')) return trimmed;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return fallbackDataUri;
+
+  try {
+    let hash = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      hash = ((hash << 5) - hash) + trimmed.charCodeAt(i);
+      hash |= 0;
+    }
+    const cleanExt = (trimmed.split('?')[0].split('.').pop() || 'png').toLowerCase().slice(0, 4);
+    const validExt = ['png', 'jpg', 'jpeg', 'svg', 'webp'].includes(cleanExt) ? cleanExt : 'png';
+    const cacheFile = `${FileSystem.cacheDirectory}logo_cache_${Math.abs(hash)}.${validExt}`;
+
+    const fileInfo = await FileSystem.getInfoAsync(cacheFile);
+    if (!fileInfo.exists) {
+      await FileSystem.downloadAsync(trimmed, cacheFile);
+    }
+
+    const base64 = await FileSystem.readAsStringAsync(cacheFile, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const mime = validExt === 'svg' ? 'image/svg+xml' : validExt === 'jpg' || validExt === 'jpeg' ? 'image/jpeg' : `image/${validExt}`;
+    return `data:${mime};base64,${base64}`;
+  } catch (err) {
+    console.warn('[letterTemplateEngine] prefetchImageAsDataUri fallback triggered:', err);
+    return fallbackDataUri;
+  }
+}
 
 export const AVAILABLE_PLACEHOLDERS = [
   { tag: '{{nama_warga}}', label: 'Nama Warga', desc: 'Nama lengkap pemohon surat' },
