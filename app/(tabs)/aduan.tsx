@@ -261,9 +261,10 @@ export default function AduanScreen() {
             style={styles.createBtn}
             activeOpacity={0.85}
             onPress={() => router.push('/complaints/create' as any)}
+            accessibilityLabel="Buat Laporan Baru"
+            accessibilityRole="button"
           >
-            <Ionicons name="add" size={18} color="#FFFFFF" />
-            <Text style={styles.createBtnText}>Buat Laporan</Text>
+            <Ionicons name="add" size={22} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
 
@@ -500,7 +501,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: 14,
   },
   headerTitle: {
@@ -539,18 +540,17 @@ const styles = StyleSheet.create({
     color: '#15803D',
   },
   createBtn: {
-    flexDirection: 'row',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.urgent,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: Spacing.radiusFull,
-    gap: 4,
-  },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontFamily: Fonts.bold,
-    fontSize: 12,
+    shadowColor: Colors.urgent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   tabSwitcher: {
     flexDirection: 'row',
