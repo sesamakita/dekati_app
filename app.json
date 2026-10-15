@@ -8,7 +8,8 @@
     "scheme": "dekati",
     "userInterfaceStyle": "light",
     "splash": {
-      "backgroundColor": "#16A34A",
+      "image": "./assets/splash.png",
+      "backgroundColor": "#047857",
       "resizeMode": "contain"
     },
     "ios": {
@@ -16,7 +17,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#16A34A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#047857"
       },
       "package": "id.desa.dekati.app"
     },
