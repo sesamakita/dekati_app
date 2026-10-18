@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,12 +69,24 @@ export default function LoginScreen() {
         >
           {/* LOGO & BRANDING */}
           <View style={styles.brandContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="leaf" size={38} color="#FFFFFF" />
+            <View style={styles.logoShadowWrapper}>
+              <Image
+                source={require('@/assets/icon.png')}
+                style={styles.logoImage}
+                resizeMode="cover"
+              />
             </View>
-            <Text style={styles.appName}>DEKATI</Text>
-            <Text style={styles.appTagline}>Desa Kita Dekat di Hati</Text>
+            <Image
+              source={require('@/assets/dekati_wordmark.png')}
+              style={styles.wordmarkImage}
+              resizeMode="contain"
+            />
+            <View style={styles.sloganContainer}>
+              <Text style={styles.sloganPrimary}>Desa &amp; Kelurahan</Text>
+              <Text style={styles.sloganSecondary}>semakin dekat di hati warga</Text>
+            </View>
             <View style={styles.villageTag}>
+              <Ionicons name="location-sharp" size={11} color={Colors.primaryDark} style={{ marginRight: 4 }} />
               <Text style={styles.villageText}>
                 {user?.village_name
                   ? `Portal Warga ${user.village_name}`
@@ -179,41 +192,52 @@ const styles = StyleSheet.create({
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: 26,
+    marginBottom: 24,
   },
-  logoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoShadowWrapper: {
     shadowColor: Colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
     marginBottom: 10,
   },
-  appName: {
-    fontFamily: Fonts.extraBold,
-    fontSize: 26,
-    color: Colors.textPrimary,
-    letterSpacing: 1.5,
+  logoImage: {
+    width: 68,
+    height: 68,
+    borderRadius: 20,
   },
-  appTagline: {
+  wordmarkImage: {
+    width: 136,
+    height: 38,
+    marginBottom: 4,
+  },
+  sloganContainer: {
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sloganPrimary: {
+    fontFamily: Fonts.bold,
+    fontSize: 12.5,
+    color: Colors.textPrimary,
+    lineHeight: 17,
+  },
+  sloganSecondary: {
     fontFamily: Fonts.medium,
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginTop: 2,
+    fontSize: 11.5,
+    color: Colors.primary,
+    lineHeight: 16,
   },
   villageTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.bento.hero.badge,
     borderWidth: 1,
     borderColor: Colors.bento.hero.border,
     paddingHorizontal: 12,
     paddingVertical: 3.5,
     borderRadius: Spacing.radiusFull,
-    marginTop: 8,
+    marginTop: 6,
   },
   villageText: {
     fontFamily: Fonts.bold,

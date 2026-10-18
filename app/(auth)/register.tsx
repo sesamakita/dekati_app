@@ -12,6 +12,7 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -400,6 +401,28 @@ export default function RegisterScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* BRAND HEADER */}
+          <View style={styles.brandHeader}>
+            <View style={styles.brandIconWrapper}>
+              <Image
+                source={require('@/assets/icon.png')}
+                style={styles.brandIcon}
+                resizeMode="cover"
+              />
+            </View>
+            <View style={styles.brandTextGroup}>
+              <Image
+                source={require('@/assets/dekati_wordmark.png')}
+                style={styles.brandWordmark}
+                resizeMode="contain"
+              />
+              <View style={styles.sloganLineGroup}>
+                <Text style={styles.sloganLine1}>Desa &amp; Kelurahan</Text>
+                <Text style={styles.sloganLine2}>semakin dekat di hati warga</Text>
+              </View>
+            </View>
+          </View>
+
           <View style={styles.infoBanner}>
             <View style={styles.infoIconCircle}>
               <Ionicons name="information-circle" size={18} color={Colors.primary} />
@@ -854,6 +877,59 @@ const styles = StyleSheet.create({
     padding: Spacing.screenPadding,
     paddingBottom: 40,
     backgroundColor: Colors.background,
+  },
+  brandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: Spacing.radiusXl,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  brandIconWrapper: {
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+    marginRight: 14,
+  },
+  brandIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+  },
+  brandTextGroup: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  brandWordmark: {
+    width: 98,
+    height: 26,
+    marginBottom: 2,
+  },
+  sloganLineGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sloganLine1: {
+    fontFamily: Fonts.bold,
+    fontSize: 10.5,
+    color: Colors.textPrimary,
+  },
+  sloganLine2: {
+    fontFamily: Fonts.medium,
+    fontSize: 10.5,
+    color: Colors.primary,
   },
   infoBanner: {
     flexDirection: 'row',
