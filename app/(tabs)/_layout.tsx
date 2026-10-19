@@ -5,13 +5,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Fonts } from '@/constants/Typography';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const { isLoading, isAuthenticated } = useAuth();
 
   if (isLoading) return null;
   if (!isAuthenticated) return <Redirect href="/(auth)/login" />;
+
+  const bottomInset = insets.bottom;
+  const tabHeight = Platform.OS === 'ios' ? 88 : 66 + bottomInset;
+  const tabPaddingBottom = Platform.OS === 'ios' ? 26 : (bottomInset > 0 ? bottomInset + 6 : 8);
 
   return (
     <Tabs
@@ -19,7 +25,13 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: Colors.navItemActiveText,
         tabBarInactiveTintColor: Colors.navItemInactiveText,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: tabHeight,
+            paddingBottom: tabPaddingBottom,
+          },
+        ],
         tabBarLabel: ({ focused, children, color }) => {
           if (focused) {
             // Sesuai permintaan: Menu aktif HANYA icon saja yang tampil tanpa text/nama menu
@@ -123,8 +135,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.navBarGreenSoft,
     borderTopColor: Colors.navBarGreenBorder,
     borderTopWidth: 1.5,
-    height: Platform.OS === 'ios' ? 88 : 66,
-    paddingBottom: Platform.OS === 'ios' ? 26 : 8,
     paddingTop: 8,
     paddingHorizontal: 8,
     elevation: 4,
