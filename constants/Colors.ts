@@ -91,6 +91,7 @@ export const Colors = {
   },
 
   status: {
+    pending_rt: { bg: '#F3E8FF', text: '#6B21A8', border: '#DDD6FE', label: 'Menunggu RT' },
     submitted: { bg: '#FEF3C7', text: '#92400E', border: '#FDE68A', label: 'Menunggu Cek' },
     in_verification: { bg: '#E0F2FE', text: '#0369A1', border: '#BAE6FD', label: 'Diverifikasi' },
     needs_revision: { bg: '#FEE2E2', text: '#991B1B', border: '#FECDD3', label: 'Perlu Revisi' },

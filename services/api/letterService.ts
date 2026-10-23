@@ -6,10 +6,12 @@ import {
   mockLetterTypes,
   mockLetterRequests,
   mockFamilyMembers,
+  mockNeighborhoodUnits,
   LetterType,
   LetterRequest
 } from '@/store/mockData';
 import { Config } from '@/constants/Config';
+import { villageService } from './villageService';
 
 class LetterService {
   private localLetterRequests: LetterRequest[] = [...mockLetterRequests];
@@ -44,7 +46,13 @@ class LetterService {
     status: string,
     createdAt?: string,
     officialNumber?: string,
-    signedBy?: string
+    signedBy?: string,
+    rtInfo?: {
+      rtNumber?: string;
+      rtStatus?: string;
+      rtLeaderName?: string;
+      rtApprovedAt?: string;
+    }
   ): { title: string; time: string; done: boolean; actor?: string }[] {
     let parsed: any[] = [];
     if (Array.isArray(rawTimeline)) {
@@ -63,6 +71,8 @@ class LetterService {
       : 'Baru saja';
 
     const isSubmitted = true;
+    const hasRtRequirement = !!rtInfo?.rtStatus || status === 'pending_rt';
+    const isRtApproved = rtInfo?.rtStatus === 'approved_by_rt' || (['submitted', 'in_verification', 'approved', 'signed', 'completed'].includes(status) && rtInfo?.rtStatus !== 'pending_rt' && status !== 'pending_rt');
     const isInVerification = ['in_verification', 'approved', 'signed', 'completed'].includes(status);
     const isApproved = ['approved', 'signed', 'completed'].includes(status);
     const isSigned = ['signed', 'completed'].includes(status);
@@ -76,25 +86,42 @@ class LetterService {
     };
 
     const step1 = findStep(['dikirim', 'diajukan', 'permohonan']);
+    const stepRt = findStep(['rt', 'rekomendasi']);
     const step2 = findStep(['verifikasi', 'pemeriksaan', 'operator']);
     const step3 = findStep(['nomor', 'registrasi', 'no.']);
     const step4 = findStep(['tanda tangan', 'tte', 'disahkan', 'selesai', 'dokumen']);
     const rejectStep = findStep(['ditolak', 'tolak']);
 
-    return [
+    const steps: { title: string; time: string; done: boolean; actor?: string }[] = [
       {
         title: 'Permohonan Dikirim Warga',
         time: step1?.time || createdTimeStr,
         done: isSubmitted,
       },
+    ];
+
+    if (hasRtRequirement) {
+      steps.push({
+        title: rtInfo?.rtStatus === 'approved_by_rt' || isRtApproved
+          ? `Rekomendasi Ketua RT ${rtInfo?.rtNumber || ''} (Disetujui)`
+          : rtInfo?.rtStatus === 'rejected_by_rt'
+          ? 'Rekomendasi Ditolak Ketua RT'
+          : `Rekomendasi Ketua RT ${rtInfo?.rtNumber || ''}`,
+        time: rtInfo?.rtApprovedAt || (stepRt?.time || (isRtApproved ? 'Disetujui RT' : status === 'pending_rt' ? 'Menunggu via WhatsApp' : '-')),
+        done: isRtApproved,
+        actor: rtInfo?.rtLeaderName || stepRt?.actor || (rtInfo?.rtNumber ? `Ketua RT ${rtInfo.rtNumber}` : 'Ketua RT Setempat'),
+      });
+    }
+
+    steps.push(
       {
-        title: isRejected
+        title: isRejected && status === 'rejected' && (!hasRtRequirement || rtInfo?.rtStatus !== 'rejected_by_rt')
           ? (rejectStep?.title || 'Pengajuan Ditolak Petugas')
           : 'Pemeriksaan Berkas Operator Pelayanan',
-        time: isRejected
+        time: isRejected && (!hasRtRequirement || rtInfo?.rtStatus !== 'rejected_by_rt')
           ? (rejectStep?.time || 'Ditolak')
           : (step2?.time || (isInVerification ? 'Selesai diverifikasi' : '-')),
-        done: isInVerification || isRejected,
+        done: isInVerification || (isRejected && rtInfo?.rtStatus !== 'rejected_by_rt'),
         actor: step2?.actor || 'Operator Pelayanan',
       },
       {
@@ -112,8 +139,10 @@ class LetterService {
         time: step4?.time || (isSigned ? 'Telah Disahkan' : '-'),
         done: isSigned,
         actor: step4?.actor || signedBy || 'Kepala Desa',
-      },
-    ];
+      }
+    );
+
+    return steps;
   }
 
   async getLetterRequests(options?: { onlyMyFamily?: boolean }): Promise<LetterRequest[]> {
@@ -164,7 +193,20 @@ class LetterService {
           signed_by_name: d.signed_by_name,
           rejection_reason: d.rejection_reason,
           created_at: d.created_at ? new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
-          timeline: this.formatTimelineSteps(d.timeline, d.status, d.created_at, d.letter_official_number, d.signed_by_name),
+          rt_number: d.rt_number,
+          rw_number: d.rw_number,
+          rt_status: d.rt_status,
+          rt_leader_name: d.rt_leader_name,
+          rt_leader_phone: d.rt_leader_phone,
+          rt_approved_at: d.rt_approved_at,
+          rt_rejection_reason: d.rt_rejection_reason,
+          rt_notes: d.rt_notes,
+          timeline: this.formatTimelineSteps(d.timeline, d.status, d.created_at, d.letter_official_number, d.signed_by_name, {
+            rtNumber: d.rt_number,
+            rtStatus: d.rt_status,
+            rtLeaderName: d.rt_leader_name,
+            rtApprovedAt: d.rt_approved_at,
+          }),
           attachments: Array.isArray(d.attachments) ? d.attachments : []
         }));
 
@@ -224,7 +266,20 @@ class LetterService {
           signed_by_name: data.signed_by_name,
           rejection_reason: data.rejection_reason,
           created_at: data.created_at ? new Date(data.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
-          timeline: this.formatTimelineSteps(data.timeline, data.status, data.created_at, data.letter_official_number, data.signed_by_name),
+          rt_number: data.rt_number,
+          rw_number: data.rw_number,
+          rt_status: data.rt_status,
+          rt_leader_name: data.rt_leader_name,
+          rt_leader_phone: data.rt_leader_phone,
+          rt_approved_at: data.rt_approved_at,
+          rt_rejection_reason: data.rt_rejection_reason,
+          rt_notes: data.rt_notes,
+          timeline: this.formatTimelineSteps(data.timeline, data.status, data.created_at, data.letter_official_number, data.signed_by_name, {
+            rtNumber: data.rt_number,
+            rtStatus: data.rt_status,
+            rtLeaderName: data.rt_leader_name,
+            rtApprovedAt: data.rt_approved_at,
+          }),
           attachments: Array.isArray(data.attachments) ? data.attachments : []
         };
 
@@ -259,8 +314,40 @@ class LetterService {
     const trackingNumber = `SRT-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
     const nowTimeStr = `${now.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`;
 
+    const citizenRt = selectedCitizen.rt || user.rt || '01';
+    const citizenRw = selectedCitizen.rw || user.rw || '01';
+    const requiresRt = !!selectedType?.requires_rt_approval;
+
+    const initialStatus = requiresRt ? 'pending_rt' : 'submitted';
+    const rtStatus = requiresRt ? 'pending_rt' : 'not_required';
+
+    let matchedRt: any = null;
+    try {
+      const activeUnits = await villageService.getNeighborhoodUnits();
+      const cleanRt = citizenRt.replace(/^0+/, '');
+      const cleanRw = citizenRw.replace(/^0+/, '');
+      matchedRt = activeUnits.find(n => {
+        const matchRt = n.rt_number.replace(/^0+/, '') === cleanRt;
+        return cleanRw ? matchRt && (n.rw_number || '').replace(/^0+/, '') === cleanRw : matchRt;
+      });
+    } catch {}
+
+    if (!matchedRt) {
+      const cleanRt = citizenRt.replace(/^0+/, '');
+      matchedRt = mockNeighborhoodUnits.find(n => n.rt_number.replace(/^0+/, '') === cleanRt);
+    }
+
+    const rtLeaderName = matchedRt?.rt_leader_name || `Ketua RT ${citizenRt}`;
+    const rtLeaderPhone = matchedRt?.rt_leader_phone || '';
+
     const timelineData = [
       { title: 'Permohonan Dikirim Warga', time: nowTimeStr, done: true },
+      ...(requiresRt ? [{
+        title: `Rekomendasi Ketua RT ${citizenRt}`,
+        time: 'Menunggu konfirmasi via WhatsApp',
+        done: false,
+        actor: rtLeaderName
+      }] : []),
       { title: 'Pemeriksaan Berkas Operator', time: '-', done: false },
       { title: 'Penerbitan Nomor Resmi Desa', time: '-', done: false },
       { title: 'Tanda Tangan Elektronik QR Kades', time: '-', done: false },
@@ -287,11 +374,16 @@ class LetterService {
       applicant_name: user.nama_lengkap,
       citizen_name: selectedCitizen.nama_lengkap,
       citizen_nik: selectedCitizen.nik,
-      status: 'submitted',
+      status: initialStatus,
       purpose: payload.purpose,
       created_at: 'Baru saja',
       timeline: timelineData,
-      attachments: processedAttachments as any
+      attachments: processedAttachments as any,
+      rt_number: citizenRt,
+      rw_number: citizenRw,
+      rt_status: rtStatus,
+      rt_leader_name: rtLeaderName,
+      rt_leader_phone: rtLeaderPhone
     };
 
     try {
@@ -306,11 +398,16 @@ class LetterService {
           applicant_phone: user.no_telepon || (user as any).phone || (user as any).phone_number || null,
           citizen_name: selectedCitizen.nama_lengkap,
           citizen_nik: selectedCitizen.nik,
-          citizen_address: selectedCitizen.alamat_lengkap || `RT ${selectedCitizen.rt || '01'} / RW ${selectedCitizen.rw || '01'}, ${selectedCitizen.village_name || 'Desa'}`,
-          status: 'submitted',
+          citizen_address: selectedCitizen.alamat_lengkap || `RT ${citizenRt} / RW ${citizenRw}, ${selectedCitizen.village_name || 'Desa'}`,
+          status: initialStatus,
           purpose: payload.purpose,
           timeline: timelineData,
-          attachments: processedAttachments
+          attachments: processedAttachments,
+          rt_number: citizenRt,
+          rw_number: citizenRw,
+          rt_status: rtStatus,
+          rt_leader_name: rtLeaderName,
+          rt_leader_phone: rtLeaderPhone
         })
         .select('*')
         .single();

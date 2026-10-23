@@ -180,9 +180,14 @@ export default function CreateLetterScreen() {
         attachments: formattedAttachments,
       });
 
+      const isRtRequired = !!selectedType?.requires_rt_approval;
+      const successMessage = isRtRequired
+        ? `Nomor pelacakan Anda: ${res.tracking_number}. Permohonan otomatis dikonfirmasikan ke Ketua RT Anda terlebih dahulu via WhatsApp sebelum diverifikasi kantor desa.`
+        : `Nomor pelacakan Anda: ${res.tracking_number}. Operator desa akan segera memproses dokumen Anda.`;
+
       showAlert({
         title: 'Permohonan Berhasil Dikirim',
-        message: `Nomor pelacakan Anda: ${res.tracking_number}. Operator desa akan segera memproses dokumen Anda.`,
+        message: successMessage,
         type: 'success',
         confirmText: 'Lacak Status Surat',
         onConfirm: () => router.replace(`/letters/${res.tracking_number}` as any),
@@ -235,6 +240,22 @@ export default function CreateLetterScreen() {
                 <Ionicons name="information-circle" size={18} color={Colors.primary} />
               </View>
               <Text style={styles.typeDescText}>{selectedType.description}</Text>
+            </View>
+          )}
+
+          {selectedType?.requires_rt_approval && (
+            <View style={styles.rtAlertCard}>
+              <View style={styles.rtAlertHeader}>
+                <Ionicons name="people-circle" size={18} color="#7C3AED" />
+                <Text style={styles.rtAlertTitle}>Memerlukan Pengantar / Rekomendasi RT</Text>
+              </View>
+              <Text style={styles.rtAlertBody}>
+                {selectedType.rt_guidelines || 'Surat ini memerlukan konfirmasi kewilayahan dari Ketua RT setempat sebelum diverifikasi oleh kantor desa.'}
+              </Text>
+              <View style={styles.rtAlertBadge}>
+                <Ionicons name="logo-whatsapp" size={12} color="#059669" />
+                <Text style={styles.rtAlertBadgeText}>Otomatis konfirmasi ke Ketua RT via WhatsApp</Text>
+              </View>
             </View>
           )}
         </View>
@@ -803,5 +824,48 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: '#FFFFFF',
     fontSize: 14,
+  },
+  rtAlertCard: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: Spacing.radiusMd,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    marginTop: 10,
+  },
+  rtAlertHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  rtAlertTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    color: '#6B21A8',
+  },
+  rtAlertBody: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: '#581C87',
+    lineHeight: 16,
+  },
+  rtAlertBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  rtAlertBadgeText: {
+    fontFamily: Fonts.medium,
+    fontSize: 10,
+    color: '#065F46',
   },
 });

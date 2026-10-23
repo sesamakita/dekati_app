@@ -59,6 +59,7 @@ export const api = {
   getEmergencyContacts: villageService.getEmergencyContacts.bind(villageService),
   getVillageEvents: villageService.getVillageEvents.bind(villageService),
   getVillageProfile: villageService.getVillageProfile.bind(villageService),
+  getNeighborhoodUnits: villageService.getNeighborhoodUnits.bind(villageService),
 };
 
 export default api;

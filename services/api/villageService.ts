@@ -4,10 +4,12 @@ import { supabase } from '../supabase';
 import {
   mockEmergencyContacts,
   mockVillageEvents,
+  mockNeighborhoodUnits,
   EmergencyContact,
   VillageEvent,
   VillageProfile,
-  LetterTemplate
+  LetterTemplate,
+  NeighborhoodUnit
 } from '@/store/mockData';
 
 class VillageService {
@@ -119,6 +121,46 @@ class VillageService {
     } catch {}
 
     return [];
+  }
+
+  async getNeighborhoodUnits(): Promise<NeighborhoodUnit[]> {
+    try {
+      const { data, error } = await supabase
+        .from('neighborhood_units')
+        .select('*')
+        .eq('is_active', true)
+        .order('rt_number', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const mapped = data.map((d: any) => ({
+          id: d.id,
+          rt_number: d.rt_number,
+          rw_number: d.rw_number,
+          dusun: d.dusun_name || d.dusun || 'Lingkungan Warga',
+          rt_leader_name: d.rt_leader_name || '',
+          rt_leader_phone: d.rt_leader_phone || '',
+          rw_leader_name: d.rw_leader_name,
+          rw_leader_phone: d.rw_leader_phone,
+          active: d.is_active ?? true,
+        }));
+        try {
+          await AsyncStorage.setItem('@dekatip_neighborhood_units', JSON.stringify(mapped));
+        } catch {}
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('[Dekati Mobile] Supabase getNeighborhoodUnits fallback.', err);
+    }
+
+    try {
+      const cached = await AsyncStorage.getItem('@dekatip_neighborhood_units');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+
+    return mockNeighborhoodUnits;
   }
 }
 

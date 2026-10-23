@@ -337,6 +337,54 @@ export default function LetterDetailScreen() {
           )}
         </View>
 
+        {/* CARD STATUS REKOMENDASI KETUA RT */}
+        {(request.rt_status || request.status === 'pending_rt' || request.rt_number) && (
+          <View style={[
+            styles.rtCard,
+            request.rt_status === 'approved_by_rt' ? styles.rtCardApproved :
+            request.rt_status === 'rejected_by_rt' ? styles.rtCardRejected :
+            styles.rtCardPending
+          ]}>
+            <View style={styles.rtCardHeader}>
+              <View style={[
+                styles.rtIconWrap,
+                request.rt_status === 'approved_by_rt' ? styles.rtIconApproved :
+                request.rt_status === 'rejected_by_rt' ? styles.rtIconRejected :
+                styles.rtIconPending
+              ]}>
+                <Ionicons
+                  name={request.rt_status === 'approved_by_rt' ? "checkmark-circle" : request.rt_status === 'rejected_by_rt' ? "close-circle" : "time"}
+                  size={18}
+                  color={request.rt_status === 'approved_by_rt' ? "#059669" : request.rt_status === 'rejected_by_rt' ? "#DC2626" : "#7C3AED"}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rtCardTitle}>Rekomendasi RT {request.rt_number ? `(RT ${request.rt_number})` : ''}</Text>
+                <Text style={styles.rtCardSubtitle}>
+                  {request.rt_status === 'approved_by_rt'
+                    ? `Disetujui Ketua RT ${request.rt_approved_at ? `• ${request.rt_approved_at}` : ''}`
+                    : request.rt_status === 'rejected_by_rt'
+                    ? 'Ditolak oleh Ketua RT setempat'
+                    : 'Menunggu konfirmasi balasan RT via WhatsApp'}
+                </Text>
+              </View>
+            </View>
+
+            {request.rt_leader_name && (
+              <View style={styles.rtInfoRow}>
+                <Text style={styles.rtInfoLabel}>Ketua RT:</Text>
+                <Text style={styles.rtInfoVal}>{request.rt_leader_name}</Text>
+              </View>
+            )}
+
+            {request.rt_rejection_reason && (
+              <Text style={styles.rtReasonText}>
+                Catatan RT: {request.rt_rejection_reason}
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* NOTIFIKASI PENOLAKAN JIKA DITOLAK */}
         {request.status === 'rejected' && (
           <View style={styles.rejectionCard}>
@@ -785,5 +833,80 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7F1D1D',
     lineHeight: 18,
+  },
+  rtCard: {
+    borderRadius: Spacing.radiusXl,
+    padding: Spacing.cardPadding,
+    marginBottom: Spacing.cardGap,
+    borderWidth: 1,
+  },
+  rtCardApproved: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
+  },
+  rtCardRejected: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECDD3',
+  },
+  rtCardPending: {
+    backgroundColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+  },
+  rtCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rtIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rtIconApproved: {
+    backgroundColor: '#DCFCE7',
+  },
+  rtIconRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  rtIconPending: {
+    backgroundColor: '#EDE9FE',
+  },
+  rtCardTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  rtCardSubtitle: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  rtInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  rtInfoLabel: {
+    fontFamily: Fonts.regular,
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  rtInfoVal: {
+    fontFamily: Fonts.bold,
+    fontSize: 11,
+    color: Colors.textPrimary,
+  },
+  rtReasonText: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    color: '#DC2626',
+    marginTop: 6,
   },
 });

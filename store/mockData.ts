@@ -64,6 +64,8 @@ export interface LetterType {
   estimated_days: number;
   icon: string;
   required_docs: string[];
+  requires_rt_approval?: boolean;
+  rt_guidelines?: string;
 }
 
 export type LetterLogoLayout = 'standard_left' | 'dual_logo' | 'center_garuda' | 'no_logo';
@@ -103,6 +105,9 @@ export interface LetterTemplate {
   created_at?: string;
 }
 
+export type LetterStatus = 'pending_rt' | 'submitted' | 'in_verification' | 'needs_revision' | 'approved' | 'signed' | 'completed' | 'rejected';
+export type RtApprovalStatus = 'not_required' | 'pending_rt' | 'approved_by_rt' | 'rejected_by_rt';
+
 export interface LetterRequest {
   id: string;
   tracking_number: string;
@@ -111,7 +116,7 @@ export interface LetterRequest {
   applicant_name: string;
   citizen_name: string;
   citizen_nik: string;
-  status: 'submitted' | 'in_verification' | 'needs_revision' | 'approved' | 'signed' | 'completed' | 'rejected';
+  status: LetterStatus;
   purpose: string;
   official_number?: string;
   qr_token?: string;
@@ -122,6 +127,26 @@ export interface LetterRequest {
   attachments?: { name: string; url: string }[];
   rejection_reason?: string;
   signed_by_name?: string;
+  rt_number?: string;
+  rw_number?: string;
+  rt_status?: RtApprovalStatus;
+  rt_leader_name?: string;
+  rt_leader_phone?: string;
+  rt_approved_at?: string;
+  rt_rejection_reason?: string;
+  rt_notes?: string;
+}
+
+export interface NeighborhoodUnit {
+  id: string;
+  rt_number: string;
+  rw_number: string;
+  dusun?: string;
+  rt_leader_name: string;
+  rt_leader_phone: string;
+  rw_leader_name?: string;
+  rw_leader_phone?: string;
+  active: boolean;
 }
 
 export interface Complaint {
@@ -293,7 +318,9 @@ export const mockLetterTypes: LetterType[] = [
     description: 'Keperluan beasiswa kuliah, permohonan keringanan RS, atau bantuan pendidikan.',
     estimated_days: 1,
     icon: 'school',
-    required_docs: ['Foto KTP Pemohon', 'Foto Kartu Keluarga (KK)', 'Surat Pengantar RT/RW']
+    required_docs: ['Foto KTP Pemohon', 'Foto Kartu Keluarga (KK)', 'Surat Pengantar RT/RW'],
+    requires_rt_approval: true,
+    rt_guidelines: 'Memerlukan surat keterangan pengantar / rekomendasi kelayakan dari Ketua RT'
   },
   {
     id: 2,
@@ -302,7 +329,9 @@ export const mockLetterTypes: LetterType[] = [
     description: 'Persyaratan pengajuan pinjaman modal usaha/KUR perbankan dan legalitas toko.',
     estimated_days: 1,
     icon: 'store',
-    required_docs: ['Foto KTP Pemilik Usaha', 'Foto Kartu Keluarga (KK)', 'Foto Tempat/Kegiatan Usaha']
+    required_docs: ['Foto KTP Pemilik Usaha', 'Foto Kartu Keluarga (KK)', 'Foto Tempat/Kegiatan Usaha'],
+    requires_rt_approval: true,
+    rt_guidelines: 'Memerlukan validasi keberadaan usaha aktif di lingkungan oleh Ketua RT'
   },
   {
     id: 3,
@@ -311,7 +340,9 @@ export const mockLetterTypes: LetterType[] = [
     description: 'Surat pengantar resmi ke Polsek untuk pembuatan SKCK melamar kerja / CPNS.',
     estimated_days: 1,
     icon: 'badge',
-    required_docs: ['Foto KTP', 'Foto Kartu Keluarga (KK)', 'Pas Foto Berwarna 4x6']
+    required_docs: ['Foto KTP', 'Foto Kartu Keluarga (KK)', 'Pas Foto Berwarna 4x6'],
+    requires_rt_approval: true,
+    rt_guidelines: 'Memerlukan surat pengantar dan keterangan kelakuan baik dari Ketua RT'
   },
   {
     id: 4,
@@ -320,7 +351,56 @@ export const mockLetterTypes: LetterType[] = [
     description: 'Keterangan tempat tinggal sah bagi warga atau perorangan.',
     estimated_days: 1,
     icon: 'home',
-    required_docs: ['Foto KTP', 'Foto Kartu Keluarga', 'Bukti Pengantar RT']
+    required_docs: ['Foto KTP', 'Foto Kartu Keluarga', 'Bukti Pengantar RT'],
+    requires_rt_approval: true,
+    rt_guidelines: 'Memerlukan konfirmasi Ketua RT atas domisili nyata tempat tinggal pemohon'
+  }
+];
+
+export const mockNeighborhoodUnits: NeighborhoodUnit[] = [
+  {
+    id: 'rt-lk-001',
+    rt_number: '01',
+    rw_number: '01',
+    dusun: 'Dusun I Lancang Kuning',
+    rt_leader_name: 'Bapak Hendra Gunawan',
+    rt_leader_phone: '081266000001',
+    rw_leader_name: 'Bapak H. Mansyur',
+    rw_leader_phone: '081266000000',
+    active: true
+  },
+  {
+    id: 'rt-lk-002',
+    rt_number: '02',
+    rw_number: '01',
+    dusun: 'Dusun I Lancang Kuning',
+    rt_leader_name: 'Bapak Wawan Setiawan',
+    rt_leader_phone: '081266000002',
+    rw_leader_name: 'Bapak H. Mansyur',
+    rw_leader_phone: '081266000000',
+    active: true
+  },
+  {
+    id: 'rt-lk-003',
+    rt_number: '03',
+    rw_number: '02',
+    dusun: 'Dusun II Lancang Kuning',
+    rt_leader_name: 'Bapak Bambang Herwanto',
+    rt_leader_phone: '081266000003',
+    rw_leader_name: 'Bapak Sugiono',
+    rw_leader_phone: '082166000000',
+    active: true
+  },
+  {
+    id: 'rt-lk-004',
+    rt_number: '04',
+    rw_number: '02',
+    dusun: 'Dusun II Lancang Kuning',
+    rt_leader_name: 'Bapak Sukirman',
+    rt_leader_phone: '081366000004',
+    rw_leader_name: 'Bapak Sugiono',
+    rw_leader_phone: '082166000000',
+    active: true
   }
 ];
 

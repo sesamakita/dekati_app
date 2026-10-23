@@ -20,7 +20,7 @@ import { Spacing } from '@/constants/Spacing';
 import { api } from '@/services/api';
 import { supabase } from '@/services/supabase';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { Citizen, LetterRequest, Announcement, EmergencyContact, VillageEvent } from '@/store/mockData';
+import { Citizen, LetterRequest, Announcement, EmergencyContact, VillageEvent, NeighborhoodUnit } from '@/store/mockData';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/context/AuthContext';
 import { EmergencyModal } from '@/components/home/EmergencyModal';
@@ -44,6 +44,7 @@ export default function HomeScreen() {
   const [apbdesData, setApbdesData] = useState<any>(null);
   const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const [villageEvents, setVillageEvents] = useState<VillageEvent[]>([]);
+  const [neighborhoodUnits, setNeighborhoodUnits] = useState<NeighborhoodUnit[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<VillageEvent | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -93,13 +94,14 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     try {
-      const [userData, letters, news, apbdes, emg, evts] = await Promise.all([
+      const [userData, letters, news, apbdes, emg, evts, nUnits] = await Promise.all([
         authUser || api.getCurrentUser(),
         api.getLetterRequests(),
         api.getAnnouncements(),
         api.getApbdes(),
         api.getEmergencyContacts(),
         api.getVillageEvents(),
+        api.getNeighborhoodUnits(),
       ]);
 
       setUser(userData);
@@ -108,6 +110,7 @@ export default function HomeScreen() {
       setApbdesData(apbdes);
       setEmergencyContacts(emg);
       setVillageEvents(evts);
+      setNeighborhoodUnits(nUnits);
 
       // Tampilkan popup/modal pertama kali hanya jika ada 'Pengumuman Penting' (is_urgent)
       const urgent = news.find((a) => a.is_urgent);
@@ -160,6 +163,11 @@ export default function HomeScreen() {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'apbdes_items' },
+          () => loadData()
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'neighborhood_units' },
           () => loadData()
         )
         .subscribe();
@@ -643,6 +651,10 @@ export default function HomeScreen() {
         onClose={() => setShowEmergencyModal(false)}
         villageName={user?.village_name || villageName || Config.villageName}
         contacts={emergencyContacts}
+        userRt={user?.rt}
+        userRw={user?.rw}
+        userDusun={user?.dusun}
+        neighborhoodUnits={neighborhoodUnits}
       />
 
       {/* VILLAGE EVENT DETAIL & LIST MODAL */}
